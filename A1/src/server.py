@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import socketserver
-from time import strftime
+from os.path import exists
+
 
 
 """
@@ -40,23 +41,38 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         make additional methods to organize the flow with which a request is handled by
         this method. But it all starts here!
         """
-        # while 1:
-        #     self.data = self.rfile.readline().strip()
-        #     print('data', self.data)
-        #     if not self.data:
-        #         break
-        
-        self.wfile.write(b"HTTP/1.1 200\n")
-        # self.wfile.write(bytes())
-        body = self.load_index()
-        content_type = "Content-Type: text/html; charset=utf-8\n"
-        content_length = f"Content-Length: {len(body)}\n"
-        connection = "Connection: close\n"
 
-        test2 = f"{content_type}{content_length}{connection}"
-        self.wfile.write(bytes(test2, encoding="utf-8"))
-        self.wfile.write(b"\n")
-        self.wfile.write(body)
+        data = self.rfile.readline().strip()
+        path = data.split()[1].decode()
+        print('path', path)
+
+        file_exists = exists(path)
+        traversal_attack = path.startswith("..")
+        excluded_filetypes = ('.py') #Tuple, accepts multiple filetypes
+        forbidden_recourse = path.endswith(excluded_filetypes)
+
+        protocol = "HTTP/1.1 "
+        status = "200\n"
+
+        if traversal_attack or forbidden_recourse:
+            status = "403\n"
+            response = f"{protocol}{status}"
+            self.wfile.write(bytes(response, encoding="utf-8"))
+
+        elif file_exists:
+            body = self.load_index()
+            content_type = "Content-Type: text/html; charset=utf-8\n"
+            content_length = f"Content-Length: {len(body)}\n"
+            connection = "Connection: close\n"
+
+            headers = f"{protocol}{status}{content_type}{content_length}{connection}"
+            self.wfile.write(bytes(headers, encoding="utf-8"))
+            self.wfile.write(b"\n")
+            self.wfile.write(body)
+        else:
+            status = "404\n"
+            response = f"{protocol}{status}"
+            self.wfile.write(bytes(response, encoding="utf-8"))
 
 
 
