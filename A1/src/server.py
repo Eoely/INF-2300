@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import socketserver
 from os.path import exists
-
+from http import HTTPStatus
 
 
 """
@@ -42,39 +42,56 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         this method. But it all starts here!
         """
 
+        self.protocol = "HTTP/1.1 "
+        self.status = f"{HTTPStatus.NOT_IMPLEMENTED}\n"
+        
         data = self.rfile.readline().strip()
+        method = data.split()[0].decode()
         path = data.split()[1].decode()
+        print("method", method)
         print('path', path)
 
+        if method == "GET":
+            self.handle_get(path)
+        elif method == "POST":
+            self.handle_post(path)
+        else:
+            self.not_implemented()
+
+
+    def handle_get(self, path: str):
         file_exists = exists(path)
         traversal_attack = path.startswith("..")
         excluded_filetypes = ('.py') #Tuple, accepts multiple filetypes
         forbidden_recourse = path.endswith(excluded_filetypes)
 
-        protocol = "HTTP/1.1 "
-        status = "200\n"
-
         if traversal_attack or forbidden_recourse:
-            status = "403\n"
-            response = f"{protocol}{status}"
+            self.status = f"{HTTPStatus.FORBIDDEN}\n"
+            response = f"{self.protocol}{self.status}"
             self.wfile.write(bytes(response, encoding="utf-8"))
 
         elif file_exists:
+            self.status = f"{HTTPStatus.OK}\n"
             body = self.load_index()
             content_type = "Content-Type: text/html; charset=utf-8\n"
             content_length = f"Content-Length: {len(body)}\n"
             connection = "Connection: close\n"
 
-            headers = f"{protocol}{status}{content_type}{content_length}{connection}"
+            headers = f"{self.protocol}{self.status}{content_type}{content_length}{connection}"
             self.wfile.write(bytes(headers, encoding="utf-8"))
             self.wfile.write(b"\n")
             self.wfile.write(body)
-        else:
-            status = "404\n"
-            response = f"{protocol}{status}"
+
+        elif not file_exists:
+            self.status = f"{HTTPStatus.NOT_FOUND}\n"
+            response = f"{self.protocol}{self.status}"
             self.wfile.write(bytes(response, encoding="utf-8"))
 
-
+        else:
+            self.not_implemented()
+    
+    def handle_post(self, path: str):
+        self.not_implemented()
 
     def load_index(self):
         f = open("index.html", "rb")
@@ -82,7 +99,19 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         f.close()
         return data
 
+    def not_implemented(self):
+        self.print_data()
+        self.status = f"{HTTPStatus.NOT_IMPLEMENTED}\n"
+        response = f"{self.protocol}{self.status}"
+        self.wfile.write(bytes(response, encoding="utf-8"))
 
+    def print_data(self):
+        print('printing data')
+        while True:
+            data = self.rfile.readline().strip().decode()
+            print('data =', data)
+            if data == '':
+                return   
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080

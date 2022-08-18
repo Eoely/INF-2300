@@ -53,7 +53,6 @@ def test_index():
     client.request("GET", "/")
     body = client.getresponse().read()
     client.close()
-    print(EXPECTED_BODY)
     return EXPECTED_BODY == body
 
 
