@@ -35,19 +35,23 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
     finish() - Does nothing by default, but is called after handle() to do any
     necessary clean up after a request is handled.
     """
+
     def handle(self):
         """
         This method is responsible for handling an http-request. You can, and should(!),
         make additional methods to organize the flow with which a request is handled by
         this method. But it all starts here!
         """
-
         self.protocol = "HTTP/1.1 "
-        self.status = f"{HTTPStatus.NOT_IMPLEMENTED}\n"
+        self.content_type = "Content-Type: text/html; charset=utf-8\n"
+        self.connection = "Connection: close\n"
         
         data = self.rfile.readline().strip()
         method = data.split()[0].decode()
         path = data.split()[1].decode()
+
+        if path.startswith('/') and path != "/":
+            path = '.' + path
 
         if method == "GET":
             self.handle_get(path)
@@ -56,7 +60,6 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         else:
             self.not_implemented()
 
-
     def handle_get(self, path: str):
         traversal_attack = path.startswith("..")
         excluded_filetypes = ('.py') #Tuple, accepts multiple filetypes
@@ -64,73 +67,54 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         file_exists = exists(path)
 
         if traversal_attack or forbidden_recourse:
-            self.status = f"{HTTPStatus.FORBIDDEN}\n"
-            response = f"{self.protocol}{self.status}"
-            self.wfile.write(bytes(response, encoding="utf-8"))
-
-        elif file_exists:
-            self.status = f"{HTTPStatus.OK}\n"
-            body = self.load_index(path)
-            content_type = "Content-Type: text/html; charset=utf-8\n"
-            content_length = f"Content-Length: {len(body)}\n"
-            connection = "Connection: close\n"
-
-            headers = f"{self.protocol}{self.status}{content_type}{content_length}{connection}"
-            self.wfile.write(bytes(headers, encoding="utf-8"))
-            self.wfile.write(b"\n")
-            self.wfile.write(body)
+            self.respond_error(HTTPStatus.FORBIDDEN)
 
         elif not file_exists:
-            self.status = f"{HTTPStatus.NOT_FOUND}\n"
-            response = f"{self.protocol}{self.status}"
-            self.wfile.write(bytes(response, encoding="utf-8"))
+            self.respond_error(HTTPStatus.NOT_FOUND)
+
+        elif file_exists:
+            self.respond_ok(path)
 
         else:
             self.not_implemented()
     
-    def handle_post(self, path: str):
-        print('handling post')
-        content_len: int = 0
+    def handle_post(self, path):
+        valid_paths = ("test.txt", "./test.txt")
+        if path not in valid_paths:
+            return self.respond_error(HTTPStatus.FORBIDDEN)
+        
+        #Get Content-Length header
+        content_len = 0
         while True:
             data = self.rfile.readline().strip().decode()
-            print('data =', data)
             if data.startswith("Content-Length"):
-                words = data.split()
-                content_len = int(words[-1])
-                print('contentlen hit')
+                content_len = int(data.split()[-1])
                 continue
             if data == '':
                 break
 
-        post_data = self.rfile.read(content_len)
-        print('post_data', post_data)
-        post_data_decoded = post_data.decode('utf-8')
-        print('post_data_dec', post_data_decoded)
+        #TODO: Format data? Remove 'text=' and spacing etc    
+        post_data = self.rfile.readline(content_len).decode('utf-8')
+        f = open(path, "a+")
+        f.write(post_data)
+        f.close()
 
-        #Create new file and write content
-        new_file = open(path, "w")
-        new_file.write(post_data_decoded)
-        new_file.close()
+        self.respond_ok(path)
 
+    def respond_ok(self, path):
         self.status = f"{HTTPStatus.OK}\n"
-        body = self.load_index(path)
-        content_type = "Content-Type: text/html; charset=utf-8\n"
+        body = self.get_data_from_path(path)
         content_length = f"Content-Length: {len(body)}\n"
-        connection = "Connection: close\n"
-
-        headers = f"{self.protocol}{self.status}{content_type}{content_length}{connection}"
+        headers = f"{self.protocol}{self.status}{self.content_type}{content_length}{self.connection}"
         self.wfile.write(bytes(headers, encoding="utf-8"))
         self.wfile.write(b"\n")
         self.wfile.write(body)
 
+    def respond_error(self, status_code):
+        response = f"{self.protocol}{status_code}"
+        self.wfile.write(bytes(response, encoding="utf-8"))
 
-
-        # # Default response, delete
-        # self.status = f"{HTTPStatus.NOT_IMPLEMENTED}\n"
-        # response = f"{self.protocol}{self.status}"
-        # self.wfile.write(bytes(response, encoding="utf-8"))
-
-    def load_index(self, path: str):
+    def get_data_from_path(self, path: str):
         if path == "/":
             path = "index.html"
         
