@@ -47,9 +47,9 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         
         data = self.rfile.readline().strip()
         method = data.split()[0].decode()
-        path = data.split()[1].decode()
-        print("method", method)
-        print('path', path)
+        path = '.' + data.split()[1].decode()
+        # print("method", method)
+        # print('path', path)
 
         if method == "GET":
             self.handle_get(path)
@@ -60,10 +60,10 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
 
 
     def handle_get(self, path: str):
-        file_exists = exists(path)
         traversal_attack = path.startswith("..")
         excluded_filetypes = ('.py') #Tuple, accepts multiple filetypes
         forbidden_recourse = path.endswith(excluded_filetypes)
+        file_exists = exists(path)
 
         if traversal_attack or forbidden_recourse:
             self.status = f"{HTTPStatus.FORBIDDEN}\n"
@@ -72,7 +72,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
 
         elif file_exists:
             self.status = f"{HTTPStatus.OK}\n"
-            body = self.load_index()
+            body = self.load_index(path)
             content_type = "Content-Type: text/html; charset=utf-8\n"
             content_length = f"Content-Length: {len(body)}\n"
             connection = "Connection: close\n"
@@ -91,10 +91,33 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             self.not_implemented()
     
     def handle_post(self, path: str):
-        self.not_implemented()
+        print('handling post')
+        content_len: int = 0
+        while True:
+            data = self.rfile.readline().strip().decode()
+            print('data =', data)
+            if data.startswith("Content-Length"):
+                words = data.split()
+                content_len = int(words[-1])
+                print('contentlen hit')
+                continue
+            if data == '':
+                break
 
-    def load_index(self):
-        f = open("index.html", "rb")
+        post_data = self.rfile.read(content_len)
+        print('post_data', post_data)
+        post_data_decoded = post_data.decode('utf-8')
+        print('post_data_dec', post_data_decoded)
+
+        self.status = f"{HTTPStatus.NOT_IMPLEMENTED}\n"
+        response = f"{self.protocol}{self.status}"
+        self.wfile.write(bytes(response, encoding="utf-8"))
+
+    def load_index(self, path: str):
+        if path == "./":
+            path = "index.html"
+        
+        f = open(path, "rb")
         data = f.read()
         f.close()
         return data
