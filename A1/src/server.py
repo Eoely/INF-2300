@@ -47,9 +47,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         
         data = self.rfile.readline().strip()
         method = data.split()[0].decode()
-        path = '.' + data.split()[1].decode()
-        # print("method", method)
-        # print('path', path)
+        path = data.split()[1].decode()
 
         if method == "GET":
             self.handle_get(path)
@@ -109,12 +107,31 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         post_data_decoded = post_data.decode('utf-8')
         print('post_data_dec', post_data_decoded)
 
-        self.status = f"{HTTPStatus.NOT_IMPLEMENTED}\n"
-        response = f"{self.protocol}{self.status}"
-        self.wfile.write(bytes(response, encoding="utf-8"))
+        #Create new file and write content
+        new_file = open(path, "w")
+        new_file.write(post_data_decoded)
+        new_file.close()
+
+        self.status = f"{HTTPStatus.OK}\n"
+        body = self.load_index(path)
+        content_type = "Content-Type: text/html; charset=utf-8\n"
+        content_length = f"Content-Length: {len(body)}\n"
+        connection = "Connection: close\n"
+
+        headers = f"{self.protocol}{self.status}{content_type}{content_length}{connection}"
+        self.wfile.write(bytes(headers, encoding="utf-8"))
+        self.wfile.write(b"\n")
+        self.wfile.write(body)
+
+
+
+        # # Default response, delete
+        # self.status = f"{HTTPStatus.NOT_IMPLEMENTED}\n"
+        # response = f"{self.protocol}{self.status}"
+        # self.wfile.write(bytes(response, encoding="utf-8"))
 
     def load_index(self, path: str):
-        if path == "./":
+        if path == "/":
             path = "index.html"
         
         f = open(path, "rb")
