@@ -1,0 +1,12 @@
+{
+    "messages": [
+        {
+            "id": "1",
+            "text": "example text"
+        },
+        {
+            "id": "2",
+            "text": "another example"
+        }
+    ]
+}

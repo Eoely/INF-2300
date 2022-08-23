@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import socketserver
+import json
 from os.path import exists
 from http import HTTPStatus
-
 
 """
 Written by: Raymon Skjørten Hansen
@@ -45,7 +45,6 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         self.protocol = "HTTP/1.1 "
         self.content_type = "Content-Type: text/html; charset=utf-8\n"
         self.connection = "Connection: close\n"
-        
         data = self.rfile.readline().strip()
         method = data.split()[0].decode()
         path = data.split()[1].decode()
@@ -53,12 +52,21 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         if path.startswith('/') and path != "/":
             path = '.' + path
 
-        if method == "GET":
-            self.handle_get(path)
-        elif method == "POST":
-            self.handle_post(path)
+        if path == "./messages":
+            if method == "GET":
+                self.messages_handle_get()
+            elif method == "POST":
+                self.messages_handle_post()
+            else:
+                self.not_implemented()
+
         else:
-            self.not_implemented()
+            if method == "GET":
+                self.handle_get(path)
+            elif method == "POST":
+                self.handle_post(path)
+            else:
+                self.not_implemented()
 
     def handle_get(self, path: str):
         traversal_attack = path.startswith("..")
@@ -93,7 +101,6 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             if data == '':
                 break
 
-        #TODO: Format data? Remove 'text=' and spacing etc    
         post_data = self.rfile.readline(content_len).decode('utf-8')
         f = open(path, "a+")
         f.write(post_data)
@@ -136,6 +143,33 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             print('data =', data)
             if data == '':
                 return   
+    
+    def messages_handle_get(self):
+        path = "messages.json"
+        self.respond_ok(path)
+
+    def messages_handle_post(self):
+        path = "messages.json"
+        #Get Content-Length header
+        content_len = 0
+        while True:
+            data = self.rfile.readline().strip().decode()
+            if data.startswith("Content-Length"):
+                content_len = int(data.split()[-1])
+                continue
+            if data == '':
+                break
+        
+        #TODO: validate json format, need to be sent from postman. Data from web form is encoded with %20 and all that
+        post_data = self.rfile.readline(content_len).decode('utf-8')
+        with open(path,'r+') as f:
+            f = open(path, 'r+')
+            data = json.load(f)
+            data["messages"].append(post_data)
+            f.seek(0)
+            json.dump(data, f, indent = 4)
+
+        self.respond_ok(path)
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
