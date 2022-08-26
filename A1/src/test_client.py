@@ -5,7 +5,7 @@ from http import HTTPStatus
 from http.client import HTTPConnection, BadStatusLine
 import os
 from random import shuffle
-
+import json
 """
 Written by: Raymon Skjørten Hansen
 Email: raymon.s.hansen@uit.no
@@ -180,6 +180,75 @@ def test_post_to_test_file_should_return_correct_content_length():
     client.close()
     return expected_content_length == actual_length
 
+# -------- TESTS FOR MESSAGES API CALLS ---------
+
+def test_messages_get():
+    """GET-request to messages returns 'messages.json'."""
+    with open("messages.json", "rb") as infile:
+        MESSAGES_BODY = infile.read()
+    client.request("GET", "/messages")
+    body = client.getresponse().read()
+    client.close()
+    return MESSAGES_BODY == body
+
+def test_messages_post():
+    """POST to test-file should respond with correct content_length."""
+    testfile = "messages.json"
+    test_id = "3"
+
+    #Remove all objects containing test id
+    with open('messages.json') as data_file:
+        messages = json.load(data_file)
+
+    for idx, obj in enumerate(messages):
+        if messages[idx]["id"] == test_id:
+            messages.pop(idx)
+
+    with open(testfile, "w") as file:
+        json.dump(messages, file, indent = 4)  
+
+    #Perfrom request
+    json_object = '{"id": "3","text": "testing testing"}'
+    msg = bytes(json_object, encoding="utf-8")
+    headers = {
+        "Content-type": "application/json",
+        "Accept": "text/plain",
+        "Content-Length": len(msg),
+    }
+
+    client.request("POST", "/messages", body=msg, headers=headers)
+    expected_content_length = len(client.getresponse().read())
+    client.close()
+
+    #Confirm last message is test_id
+    with open('messages.json') as data_file:
+        messages = json.load(data_file)
+
+    return messages[-1]["id"] == test_id 
+
+def test_messages_put():
+    """PUT to test-file should respond with correct content_length."""
+    testfile = "messages.json"
+    test_id = "1" #Assume always existing at index 0
+
+    #Perfrom request
+    json_object = '{"id": "1","text": "put test message"}'
+    msg = bytes(json_object, encoding="utf-8")
+    headers = {
+        "Content-type": "application/json",
+        "Accept": "text/plain",
+        "Content-Length": len(msg),
+    }
+
+    client.request("PUT", "/messages", body=msg, headers=headers)
+    expected_content_length = len(client.getresponse().read())
+    client.close()
+
+    #Confirm last message is test_id
+    with open('messages.json') as data_file:
+        messages = json.load(data_file)
+
+    return messages[0] == json.loads(json_object) 
 
 test_functions = [
     server_returns_valid_response_code,
@@ -194,6 +263,9 @@ test_functions = [
     test_post_to_non_existing_file_should_create_file,
     test_post_to_test_file_should_return_file_content,
     test_post_to_test_file_should_return_correct_content_length,
+    test_messages_get,
+    test_messages_post,
+    test_messages_put
 ]
 
 
@@ -208,6 +280,7 @@ def run_tests(all_tests, random=False):
                 passed += 1
             else:
                 skip_rest = True
+            print('result test', result)
             print(("FAIL", "PASS")[result] + "\t" + test_function.__doc__)
         else:
             print("SKIP\t" + test_function.__doc__)

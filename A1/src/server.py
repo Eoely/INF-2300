@@ -45,6 +45,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         self.protocol = "HTTP/1.1 "
         self.content_type = "Content-Type: text/html; charset=utf-8\n"
         self.connection = "Connection: close\n"
+
         data = self.rfile.readline().strip()
         method = data.split()[0].decode()
         path = data.split()[1].decode()
@@ -57,6 +58,8 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
                 self.messages_handle_get()
             elif method == "POST":
                 self.messages_handle_post()
+            elif method == "PUT":
+                self.messages_handle_put()
             else:
                 self.not_implemented()
 
@@ -159,16 +162,45 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
                 continue
             if data == '':
                 break
-        
-        #TODO: validate json format, need to be sent from postman. Data from web form is encoded with %20 and all that
         post_data = self.rfile.readline(content_len).decode('utf-8')
-        with open(path,'r+') as f:
-            f = open(path, 'r+')
-            data = json.load(f)
-            data["messages"].append(post_data)
-            f.seek(0)
-            json.dump(data, f, indent = 4)
 
+        #TODO: validate json format, need to be sent from postman. Data from web form is encoded with %20 and all that
+        with open(path,'r') as f:
+            # print('content length from server',len(path))
+            data = json.load(f)
+            data.append(json.loads(post_data))
+
+        with open(path, "w") as file:
+            json.dump(data, file, indent = 4)
+        
+        self.respond_ok(path)
+    
+    def messages_handle_put(self):
+        path = "messages.json"
+        #Get Content-Length header
+        content_len = 0
+        while True:
+            data = self.rfile.readline().strip().decode()
+            if data.startswith("Content-Length"):
+                content_len = int(data.split()[-1])
+                continue
+            if data == '':
+                break
+        put_data = self.rfile.readline(content_len).decode('utf-8')
+        put_data_json = json.loads(put_data)
+        message_id = put_data_json["id"]
+
+        #TODO: validate json format, need to be sent from postman. Data from web form is encoded with %20 and all that
+        with open(path,'r') as f:
+            messages = json.load(f)
+            
+        for idx, obj in enumerate(messages):
+            if messages[idx]["id"] == message_id:
+                messages[idx] = put_data_json
+
+        with open(path, "w") as file:
+            json.dump(messages, file, indent = 4)
+        
         self.respond_ok(path)
 
 if __name__ == "__main__":

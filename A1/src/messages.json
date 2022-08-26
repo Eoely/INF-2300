@@ -1,12 +1,14 @@
-{
-    "messages": [
-        {
-            "id": "1",
-            "text": "example text"
-        },
-        {
-            "id": "2",
-            "text": "another example"
-        }
-    ]
-}
+[
+    {
+        "id": "1",
+        "text": "put test message"
+    },
+    {
+        "id": "2",
+        "text": "another example"
+    },
+    {
+        "id": "3",
+        "text": "testing testing"
+    }
+]
