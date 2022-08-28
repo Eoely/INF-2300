@@ -196,7 +196,7 @@ def test_messages_post():
     testfile = "messages.json"
     test_id = "3"
 
-    #Remove all objects containing test id
+    #Remove all objects containing test id to avoid duplicates
     with open('messages.json') as data_file:
         messages = json.load(data_file)
 
@@ -208,7 +208,7 @@ def test_messages_post():
         json.dump(messages, file, indent = 4)  
 
     #Perfrom request
-    json_object = '{"id": "3","text": "testing testing"}'
+    json_object = '{"id": "3", "text": "testing testing"}'
     msg = bytes(json_object, encoding="utf-8")
     headers = {
         "Content-type": "application/json",
@@ -217,22 +217,22 @@ def test_messages_post():
     }
 
     client.request("POST", "/messages", body=msg, headers=headers)
-    expected_content_length = len(client.getresponse().read())
+    body = client.getresponse().read().decode('utf-8')
     client.close()
 
     #Confirm last message is test_id
     with open('messages.json') as data_file:
         messages = json.load(data_file)
+    
+    return str(messages[-1]).replace("'", '"') ==  body == json_object
 
-    return messages[-1]["id"] == test_id 
-
-def test_messages_put():
-    """PUT to test-file should respond with correct content_length."""
+def test_messages_put_edit():
+    """PUT to messages should edit existing object."""
     testfile = "messages.json"
     test_id = "1" #Assume always existing at index 0
 
     #Perfrom request
-    json_object = '{"id": "1","text": "put test message"}'
+    json_object = '{"id": "1", "text": "put test message"}'
     msg = bytes(json_object, encoding="utf-8")
     headers = {
         "Content-type": "application/json",
@@ -241,14 +241,76 @@ def test_messages_put():
     }
 
     client.request("PUT", "/messages", body=msg, headers=headers)
-    expected_content_length = len(client.getresponse().read())
+    response = client.getresponse()
     client.close()
 
     #Confirm last message is test_id
-    with open('messages.json') as data_file:
+    with open(testfile) as data_file:
         messages = json.load(data_file)
 
-    return messages[0] == json.loads(json_object) 
+    return messages[0] == json.loads(json_object) and response.status == HTTPStatus.OK
+
+def test_messages_put_create():
+    """PUT to messages should edit existing object."""
+    testfile = "messages.json"
+    test_id = "new id put test"
+
+    #Perfrom request
+    json_object = '{"id": "new id put test", "text": "put test message"}'
+    msg = bytes(json_object, encoding="utf-8")
+    headers = {
+        "Content-type": "application/json",
+        "Accept": "text/plain",
+        "Content-Length": len(msg),
+    }
+
+    client.request("PUT", "/messages", body=msg, headers=headers)
+    response = client.getresponse()
+    client.close()
+
+    #Reads result and remove message for future tests
+    with open('messages.json', 'r+') as f:
+        result = json.load(f)
+        f.seek(0)
+        messages = json.load(f)
+        f.seek(0)
+        for message in messages:
+            if message["id"] == test_id:
+                messages.remove(message)
+        json.dump(messages, f, indent = 4)  
+        f.truncate()
+
+    return result[-1] == json.loads(json_object) and response.status == HTTPStatus.CREATED
+
+def test_messages_delete():
+    """DELETE to messages json file, verifies that last object changes after delete"""
+    testfile = "messages.json"
+    #Add object to avoid deletion of real data
+    
+    with open(testfile, 'r') as f:
+        original_messages = json.loads(f.read())
+        last_id_start = original_messages[-1]["id"]
+
+    msg = bytes(str(original_messages[-1]).replace("'", '"'), encoding="utf-8")
+    headers = {
+        "Content-type": "application/json",
+        "Accept": "text/plain",
+        "Content-Length": len(msg),
+    }
+
+    client.request("DELETE", "/messages", body=msg, headers=headers)
+    response = client.getresponse()
+    client.close()
+
+    with open(testfile, 'r') as data_file:
+        # result_messages = json.loads(data_file.read())
+        result_messages = json.load(data_file)
+        last_id_result = result_messages[-1]["id"]
+    
+    # return True
+    print('cancer', last_id_result, last_id_start)
+    return last_id_start != last_id_result
+
 
 test_functions = [
     server_returns_valid_response_code,
@@ -265,7 +327,9 @@ test_functions = [
     test_post_to_test_file_should_return_correct_content_length,
     test_messages_get,
     test_messages_post,
-    test_messages_put
+    test_messages_put_edit,
+    test_messages_put_create,
+    test_messages_delete,
 ]
 
 

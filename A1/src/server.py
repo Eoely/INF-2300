@@ -54,12 +54,15 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             path = '.' + path
 
         if path == "./messages":
+            file = "messages.json"
             if method == "GET":
-                self.messages_handle_get()
+                self.messages_handle_get(file)
             elif method == "POST":
-                self.messages_handle_post()
+                self.messages_handle_post(file)
             elif method == "PUT":
-                self.messages_handle_put()
+                self.messages_handle_put(file)
+            elif method == "DELETE":
+                self.messages_handle_delete(file)
             else:
                 self.not_implemented()
 
@@ -84,7 +87,8 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             self.respond_error(HTTPStatus.NOT_FOUND)
 
         elif file_exists:
-            self.respond_ok(path)
+            body = self.get_data_from_path(path)
+            self.respond_ok(path, body)
 
         else:
             self.not_implemented()
@@ -109,11 +113,12 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         f.write(post_data)
         f.close()
 
-        self.respond_ok(path)
+        response_body = self.get_data_from_path(path)
+        self.respond_ok(path, response_body)
 
-    def respond_ok(self, path):
+    def respond_ok(self, path, body):
         self.status = f"{HTTPStatus.OK}\n"
-        body = self.get_data_from_path(path)
+        # body = self.get_data_from_path(path)
         content_length = f"Content-Length: {len(body)}\n"
         headers = f"{self.protocol}{self.status}{self.content_type}{content_length}{self.connection}"
         self.wfile.write(bytes(headers, encoding="utf-8"))
@@ -147,12 +152,11 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             if data == '':
                 return   
     
-    def messages_handle_get(self):
-        path = "messages.json"
-        self.respond_ok(path)
+    def messages_handle_get(self, path):
+        body = self.get_data_from_path(path)
+        self.respond_ok(path, body)
 
-    def messages_handle_post(self):
-        path = "messages.json"
+    def messages_handle_post(self, path):
         #Get Content-Length header
         content_len = 0
         while True:
@@ -162,21 +166,52 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
                 continue
             if data == '':
                 break
-        post_data = self.rfile.readline(content_len).decode('utf-8')
 
-        #TODO: validate json format, need to be sent from postman. Data from web form is encoded with %20 and all that
+        post_data = self.rfile.readline(content_len)
+        post_data_decoded = post_data.decode('utf-8')
+
         with open(path,'r') as f:
-            # print('content length from server',len(path))
             data = json.load(f)
             data.append(json.loads(post_data))
 
         with open(path, "w") as file:
             json.dump(data, file, indent = 4)
         
-        self.respond_ok(path)
+        self.respond_ok(path, post_data)
     
-    def messages_handle_put(self):
-        path = "messages.json"
+    def messages_handle_put(self, path):
+        #Get Content-Length header
+        content_len = 0
+        while True:
+            data = self.rfile.readline().strip().decode()
+            if data.startswith("Content-Length"):
+                content_len = int(data.split()[-1])
+                continue
+            if data == '':
+                break
+
+        put_data = self.rfile.readline(content_len).decode('utf-8')
+        put_data_json = json.loads(put_data)
+        message_id = put_data_json["id"]
+        #TODO: validate json format, need to be sent from postman. Data from web form is encoded with %20 and all that
+        with open(path,'r') as f:
+            messages = json.load(f)
+        edited = False
+        for idx, obj in enumerate(messages):
+            if messages[idx]["id"] == message_id:
+                messages[idx] = put_data_json
+                edited = True 
+
+        if not edited:
+            messages.append(put_data_json)
+
+        with open(path, "w") as file:
+            json.dump(messages, file, indent = 4)
+        status = HTTPStatus.OK if edited == True else HTTPStatus.CREATED
+        self.respond_error(status)
+
+
+    def messages_handle_delete(self, path):
         #Get Content-Length header
         content_len = 0
         while True:
@@ -189,20 +224,31 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         put_data = self.rfile.readline(content_len).decode('utf-8')
         put_data_json = json.loads(put_data)
         message_id = put_data_json["id"]
+        print('skjer', put_data, message_id)
 
-        #TODO: validate json format, need to be sent from postman. Data from web form is encoded with %20 and all that
-        with open(path,'r') as f:
-            messages = json.load(f)
-            
+        # with open(path) as data_file:
+        #     messages = json.load(data_file)
+
+        messages = json.load(open(path))
+
         for idx, obj in enumerate(messages):
             if messages[idx]["id"] == message_id:
-                messages[idx] = put_data_json
-
-        with open(path, "w") as file:
-            json.dump(messages, file, indent = 4)
+                print('actually popping?')
+                messages.pop(idx)
+                break
         
-        self.respond_ok(path)
+        open(path, "w").write(
+            json.dumps(messages, indent=4)
+)
+        # with open(path, "w") as file:
+        #     # json.dump(messages, file, indent = 4)
+        #     json.dump(messages, indent=4)  
 
+        # with open(path, "r") as file2:
+        #     messages = json.load(file2)
+
+        self.respond_error(HTTPStatus.OK)
+        
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
     socketserver.TCPServer.allow_reuse_address = True
