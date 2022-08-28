@@ -81,14 +81,14 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         file_exists = exists(path)
 
         if traversal_attack or forbidden_recourse:
-            self.respond_error(HTTPStatus.FORBIDDEN)
+            self.respond_status(HTTPStatus.FORBIDDEN)
 
         elif not file_exists:
-            self.respond_error(HTTPStatus.NOT_FOUND)
+            self.respond_status(HTTPStatus.NOT_FOUND)
 
         elif file_exists:
             body = self.get_data_from_path(path)
-            self.respond_ok(path, body)
+            self.respond_with_body(HTTPStatus.OK, body)
 
         else:
             self.not_implemented()
@@ -96,17 +96,14 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
     def handle_post(self, path):
         valid_paths = ("test.txt", "./test.txt")
         if path not in valid_paths:
-            return self.respond_error(HTTPStatus.FORBIDDEN)
+            return self.respond_status(HTTPStatus.FORBIDDEN)
         
-        #Get Content-Length header
         content_len = 0
-        while True:
+        data = None
+        while data != '':
             data = self.rfile.readline().strip().decode()
             if data.startswith("Content-Length"):
                 content_len = int(data.split()[-1])
-                continue
-            if data == '':
-                break
 
         post_data = self.rfile.readline(content_len).decode('utf-8')
         f = open(path, "a+")
@@ -114,18 +111,16 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         f.close()
 
         response_body = self.get_data_from_path(path)
-        self.respond_ok(path, response_body)
+        self.respond_with_body(HTTPStatus.CREATED, response_body)
 
-    def respond_ok(self, path, body):
-        self.status = f"{HTTPStatus.OK}\n"
-        # body = self.get_data_from_path(path)
+    def respond_with_body(self, status, body):
         content_length = f"Content-Length: {len(body)}\n"
-        headers = f"{self.protocol}{self.status}{self.content_type}{content_length}{self.connection}"
+        headers = f"{self.protocol}{status}\n{self.content_type}{content_length}{self.connection}"
         self.wfile.write(bytes(headers, encoding="utf-8"))
         self.wfile.write(b"\n")
         self.wfile.write(body)
 
-    def respond_error(self, status_code):
+    def respond_status(self, status_code):
         response = f"{self.protocol}{status_code}"
         self.wfile.write(bytes(response, encoding="utf-8"))
 
@@ -138,67 +133,46 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         f.close()
         return data
 
-    def not_implemented(self):
-        self.print_data()
-        self.status = f"{HTTPStatus.NOT_IMPLEMENTED}\n"
-        response = f"{self.protocol}{self.status}"
-        self.wfile.write(bytes(response, encoding="utf-8"))
-
-    def print_data(self):
-        print('printing data')
-        while True:
-            data = self.rfile.readline().strip().decode()
-            print('data =', data)
-            if data == '':
-                return   
     
     def messages_handle_get(self, path):
         body = self.get_data_from_path(path)
-        self.respond_ok(path, body)
+        self.respond_with_body(HTTPStatus.OK, body)
 
     def messages_handle_post(self, path):
-        #Get Content-Length header
         content_len = 0
-        while True:
+        data = None
+        while data != '':
             data = self.rfile.readline().strip().decode()
             if data.startswith("Content-Length"):
                 content_len = int(data.split()[-1])
-                continue
-            if data == '':
-                break
 
         post_data = self.rfile.readline(content_len)
-        post_data_decoded = post_data.decode('utf-8')
-
-        with open(path,'r') as f:
+        with open(path,'r+') as f:
             data = json.load(f)
             data.append(json.loads(post_data))
-
-        with open(path, "w") as file:
-            json.dump(data, file, indent = 4)
+            f.seek(0)
+            json.dump(data, f, indent = 4)
+            f.truncate()
         
-        self.respond_ok(path, post_data)
+        self.respond_with_body(HTTPStatus.CREATED, post_data)#TODO: correct status 201 elns
     
     def messages_handle_put(self, path):
-        #Get Content-Length header
         content_len = 0
-        while True:
+        data = None
+        while data != '':
             data = self.rfile.readline().strip().decode()
             if data.startswith("Content-Length"):
                 content_len = int(data.split()[-1])
-                continue
-            if data == '':
-                break
 
         put_data = self.rfile.readline(content_len).decode('utf-8')
         put_data_json = json.loads(put_data)
         message_id = put_data_json["id"]
-        #TODO: validate json format, need to be sent from postman. Data from web form is encoded with %20 and all that
         with open(path,'r') as f:
             messages = json.load(f)
+
         edited = False
-        for idx, obj in enumerate(messages):
-            if messages[idx]["id"] == message_id:
+        for idx, message in enumerate(messages):
+            if message["id"] == message_id:
                 messages[idx] = put_data_json
                 edited = True 
 
@@ -207,47 +181,36 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
 
         with open(path, "w") as file:
             json.dump(messages, file, indent = 4)
-        status = HTTPStatus.OK if edited == True else HTTPStatus.CREATED
-        self.respond_error(status)
+
+        self.respond_status(HTTPStatus.OK if edited == True else HTTPStatus.CREATED)
 
 
     def messages_handle_delete(self, path):
-        #Get Content-Length header
         content_len = 0
-        while True:
+        data = None
+        while data != '':
             data = self.rfile.readline().strip().decode()
             if data.startswith("Content-Length"):
                 content_len = int(data.split()[-1])
-                continue
-            if data == '':
-                break
+
         put_data = self.rfile.readline(content_len).decode('utf-8')
         put_data_json = json.loads(put_data)
         message_id = put_data_json["id"]
-        print('skjer', put_data, message_id)
 
-        # with open(path) as data_file:
-        #     messages = json.load(data_file)
+        with open(path) as data_file:
+            messages = json.load(data_file)
 
-        messages = json.load(open(path))
+        deleted = False    
 
-        for idx, obj in enumerate(messages):
-            if messages[idx]["id"] == message_id:
-                print('actually popping?')
-                messages.pop(idx)
-                break
-        
-        open(path, "w").write(
-            json.dumps(messages, indent=4)
-)
-        # with open(path, "w") as file:
-        #     # json.dump(messages, file, indent = 4)
-        #     json.dump(messages, indent=4)  
+        for message in messages:
+            if message["id"] == message_id:
+                messages.remove(message)
+                deleted = True
 
-        # with open(path, "r") as file2:
-        #     messages = json.load(file2)
+        with open(path, "w") as file:
+            json.dump(messages, file, indent = 4)
 
-        self.respond_error(HTTPStatus.OK)
+        self.respond_status(HTTPStatus.NO_CONTENT if deleted else HTTPStatus.NOT_FOUND)
         
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080

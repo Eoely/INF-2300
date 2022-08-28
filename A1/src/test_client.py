@@ -26,6 +26,7 @@ with open("index.html", "rb") as infile:
 with open("server.py", "rb") as infile:
     FORBIDDEN_BODY = infile.read()
 
+messages_file = "messages.json"
 
 class MockServer(socketserver.TCPServer):
     allow_reuse_address = True
@@ -184,7 +185,7 @@ def test_post_to_test_file_should_return_correct_content_length():
 
 def test_messages_get():
     """GET-request to messages returns 'messages.json'."""
-    with open("messages.json", "rb") as infile:
+    with open(messages_file, "rb") as infile:
         MESSAGES_BODY = infile.read()
     client.request("GET", "/messages")
     body = client.getresponse().read()
@@ -193,22 +194,20 @@ def test_messages_get():
 
 def test_messages_post():
     """POST to test-file should respond with correct content_length."""
-    testfile = "messages.json"
-    test_id = "3"
+    test_id = "post test id"
 
     #Remove all objects containing test id to avoid duplicates
-    with open('messages.json') as data_file:
-        messages = json.load(data_file)
-
-    for idx, obj in enumerate(messages):
-        if messages[idx]["id"] == test_id:
-            messages.pop(idx)
-
-    with open(testfile, "w") as file:
-        json.dump(messages, file, indent = 4)  
+    with open(messages_file, 'r+') as f:
+        messages = json.load(f)
+        for message in messages:
+            if message["id"] == test_id:
+                messages.remove(message)
+        f.seek(0)
+        json.dump(messages, f, indent=4)
+        f.truncate()
 
     #Perfrom request
-    json_object = '{"id": "3", "text": "testing testing"}'
+    json_object = '{"id": "post test id", "text": "testing testing"}'
     msg = bytes(json_object, encoding="utf-8")
     headers = {
         "Content-type": "application/json",
@@ -217,21 +216,20 @@ def test_messages_post():
     }
 
     client.request("POST", "/messages", body=msg, headers=headers)
-    body = client.getresponse().read().decode('utf-8')
+    response = client.getresponse()
+    body = response.read().decode('utf-8')
+    # body = client.getresponse().read().decode('utf-8')
     client.close()
 
     #Confirm last message is test_id
-    with open('messages.json') as data_file:
-        messages = json.load(data_file)
-    
-    return str(messages[-1]).replace("'", '"') ==  body == json_object
+    with open(messages_file) as f:
+        result_messages = json.load(f)
+        last_message = str(result_messages[-1]).replace("'", '"')
+    return last_message ==  body == json_object and response.status == HTTPStatus.CREATED
 
 def test_messages_put_edit():
-    """PUT to messages should edit existing object."""
-    testfile = "messages.json"
-    test_id = "1" #Assume always existing at index 0
+    """PUT to messages should edit existing object, assume first message has id "1"."""
 
-    #Perfrom request
     json_object = '{"id": "1", "text": "put test message"}'
     msg = bytes(json_object, encoding="utf-8")
     headers = {
@@ -245,14 +243,13 @@ def test_messages_put_edit():
     client.close()
 
     #Confirm last message is test_id
-    with open(testfile) as data_file:
+    with open(messages_file) as data_file:
         messages = json.load(data_file)
 
     return messages[0] == json.loads(json_object) and response.status == HTTPStatus.OK
 
 def test_messages_put_create():
     """PUT to messages should edit existing object."""
-    testfile = "messages.json"
     test_id = "new id put test"
 
     #Perfrom request
@@ -269,7 +266,7 @@ def test_messages_put_create():
     client.close()
 
     #Reads result and remove message for future tests
-    with open('messages.json', 'r+') as f:
+    with open(messages_file, 'r+') as f:
         result = json.load(f)
         f.seek(0)
         messages = json.load(f)
@@ -284,10 +281,8 @@ def test_messages_put_create():
 
 def test_messages_delete():
     """DELETE to messages json file, verifies that last object changes after delete"""
-    testfile = "messages.json"
-    #Add object to avoid deletion of real data
-    
-    with open(testfile, 'r') as f:
+
+    with open(messages_file, 'r') as f:
         original_messages = json.loads(f.read())
         last_id_start = original_messages[-1]["id"]
 
@@ -302,14 +297,11 @@ def test_messages_delete():
     response = client.getresponse()
     client.close()
 
-    with open(testfile, 'r') as data_file:
-        # result_messages = json.loads(data_file.read())
-        result_messages = json.load(data_file)
+    with open(messages_file, 'r') as f:
+        result_messages = json.load(f)
         last_id_result = result_messages[-1]["id"]
     
-    # return True
-    print('cancer', last_id_result, last_id_start)
-    return last_id_start != last_id_result
+    return last_id_start != last_id_result and response.status == HTTPStatus.NO_CONTENT
 
 
 test_functions = [
