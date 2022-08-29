@@ -50,10 +50,22 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         method = data.split()[0].decode()
         path = data.split()[1].decode()
 
-        if path.startswith('/') and path != "/":
-            path = '.' + path
+        if path == "/messages":
+            path = "messages.json"
 
-        if path == "./messages":
+        traversal_attack = path.startswith("..")
+        excluded_filetypes = ('.py') #Tuple, accepts multiple filetypes
+        forbidden_recourse = path.endswith(excluded_filetypes)
+        file_exists = exists(path)
+
+        if traversal_attack or forbidden_recourse:
+            self.respond_status(HTTPStatus.FORBIDDEN)
+
+        elif not file_exists and method != "POST":
+            self.respond_status(HTTPStatus.NOT_FOUND)
+        
+
+        elif path == "messages.json":
             file = "messages.json"
             if method == "GET":
                 self.messages_handle_get(file)
@@ -64,7 +76,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             elif method == "DELETE":
                 self.messages_handle_delete(file)
             else:
-                self.not_implemented()
+                self.bad_request()
 
         else:
             if method == "GET":
@@ -72,26 +84,11 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             elif method == "POST":
                 self.handle_post(path)
             else:
-                self.not_implemented()
+                self.bad_request()
 
-    def handle_get(self, path: str):
-        traversal_attack = path.startswith("..")
-        excluded_filetypes = ('.py') #Tuple, accepts multiple filetypes
-        forbidden_recourse = path.endswith(excluded_filetypes)
-        file_exists = exists(path)
-
-        if traversal_attack or forbidden_recourse:
-            self.respond_status(HTTPStatus.FORBIDDEN)
-
-        elif not file_exists:
-            self.respond_status(HTTPStatus.NOT_FOUND)
-
-        elif file_exists:
-            body = self.get_data_from_path(path)
-            self.respond_with_body(HTTPStatus.OK, body)
-
-        else:
-            self.not_implemented()
+    def handle_get(self, path):
+        body = self.get_data_from_path(path)
+        self.respond_with_body(HTTPStatus.OK, body)
     
     def handle_post(self, path):
         valid_paths = ("test.txt", "./test.txt")
@@ -104,7 +101,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             data = self.rfile.readline().strip().decode()
             if data.startswith("Content-Length"):
                 content_len = int(data.split()[-1])
-
+        
         post_data = self.rfile.readline(content_len).decode('utf-8')
         f = open(path, "a+")
         f.write(post_data)
@@ -124,7 +121,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         response = f"{self.protocol}{status_code}"
         self.wfile.write(bytes(response, encoding="utf-8"))
 
-    def get_data_from_path(self, path: str):
+    def get_data_from_path(self, path):
         if path == "/":
             path = "index.html"
         
@@ -147,14 +144,28 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
                 content_len = int(data.split()[-1])
 
         post_data = self.rfile.readline(content_len)
-        with open(path,'r+') as f:
+
+        try:
+            post_data_json = json.loads(post_data)
+        except:
+            return self.bad_request()
+
+        if post_data_json.get("text") == None:
+            return self.bad_request()
+
+        with open(path, 'r') as f:
             data = json.load(f)
-            data.append(json.loads(post_data))
-            f.seek(0)
-            json.dump(data, f, indent = 4)
-            f.truncate()
+            last_id = data[-1]["id"]
         
-        self.respond_with_body(HTTPStatus.CREATED, post_data)#TODO: correct status 201 elns
+        data_with_id = {}
+        data_with_id["id"] = str(int(last_id) + 1)
+        data_with_id["text"] = post_data_json["text"]
+
+        with open(path,'w') as f:
+            data.append(data_with_id)
+            json.dump(data, f, indent = 4)
+        
+        self.respond_with_body(HTTPStatus.CREATED, post_data)
     
     def messages_handle_put(self, path):
         content_len = 0
@@ -165,7 +176,14 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
                 content_len = int(data.split()[-1])
 
         put_data = self.rfile.readline(content_len).decode('utf-8')
-        put_data_json = json.loads(put_data)
+        try:
+            put_data_json = json.loads(put_data)
+        except:
+            return self.bad_request()
+
+        if put_data_json.get("text") == None or put_data_json.get("id") == None:
+            return self.bad_request()
+
         message_id = put_data_json["id"]
         with open(path,'r') as f:
             messages = json.load(f)
@@ -177,7 +195,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
                 edited = True 
 
         if not edited:
-            messages.append(put_data_json)
+            return self.respond_status(HTTPStatus.NOT_FOUND)
 
         with open(path, "w") as file:
             json.dump(messages, file, indent = 4)
@@ -193,9 +211,16 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             if data.startswith("Content-Length"):
                 content_len = int(data.split()[-1])
 
-        put_data = self.rfile.readline(content_len).decode('utf-8')
-        put_data_json = json.loads(put_data)
-        message_id = put_data_json["id"]
+        delete_data = self.rfile.readline(content_len).decode('utf-8')
+
+        try:
+            delete_data_json = json.loads(delete_data)
+        except:
+            return self.bad_request()
+
+        if delete_data_json.get("id") == None:
+            return self.bad_request()
+        message_id = delete_data_json["id"]
 
         with open(path) as data_file:
             messages = json.load(data_file)
@@ -211,7 +236,10 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             json.dump(messages, file, indent = 4)
 
         self.respond_status(HTTPStatus.NO_CONTENT if deleted else HTTPStatus.NOT_FOUND)
-        
+    
+    def bad_request(self):
+        self.respond_status(HTTPStatus.BAD_REQUEST)
+
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
     socketserver.TCPServer.allow_reuse_address = True

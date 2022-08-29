@@ -194,20 +194,8 @@ def test_messages_get():
 
 def test_messages_post():
     """POST to test-file should respond with correct content_length."""
-    test_id = "post test id"
-
-    #Remove all objects containing test id to avoid duplicates
-    with open(messages_file, 'r+') as f:
-        messages = json.load(f)
-        for message in messages:
-            if message["id"] == test_id:
-                messages.remove(message)
-        f.seek(0)
-        json.dump(messages, f, indent=4)
-        f.truncate()
-
-    #Perfrom request
-    json_object = '{"id": "post test id", "text": "testing testing"}'
+    test_text ="POST Test text"
+    json_object = '{"text": "POST Test text"}'
     msg = bytes(json_object, encoding="utf-8")
     headers = {
         "Content-type": "application/json",
@@ -224,8 +212,8 @@ def test_messages_post():
     #Confirm last message is test_id
     with open(messages_file) as f:
         result_messages = json.load(f)
-        last_message = str(result_messages[-1]).replace("'", '"')
-    return last_message ==  body == json_object and response.status == HTTPStatus.CREATED
+        last_message_text = result_messages[-1]["text"]
+    return last_message_text == test_text and response.status == HTTPStatus.CREATED
 
 def test_messages_put_edit():
     """PUT to messages should edit existing object, assume first message has id "1"."""
@@ -249,7 +237,7 @@ def test_messages_put_edit():
     return messages[0] == json.loads(json_object) and response.status == HTTPStatus.OK
 
 def test_messages_put_create():
-    """PUT to messages should edit existing object."""
+    """PUT with non-existing ID, should NOT create message."""
     test_id = "new id put test"
 
     #Perfrom request
@@ -265,19 +253,7 @@ def test_messages_put_create():
     response = client.getresponse()
     client.close()
 
-    #Reads result and remove message for future tests
-    with open(messages_file, 'r+') as f:
-        result = json.load(f)
-        f.seek(0)
-        messages = json.load(f)
-        f.seek(0)
-        for message in messages:
-            if message["id"] == test_id:
-                messages.remove(message)
-        json.dump(messages, f, indent = 4)  
-        f.truncate()
-
-    return result[-1] == json.loads(json_object) and response.status == HTTPStatus.CREATED
+    return response.status == HTTPStatus.NOT_FOUND
 
 def test_messages_delete():
     """DELETE to messages json file, verifies that last object changes after delete"""
@@ -303,6 +279,63 @@ def test_messages_delete():
     
     return last_id_start != last_id_result and response.status == HTTPStatus.NO_CONTENT
 
+# -------- SPECIAL CASES ---------
+
+def test_messages_pizza():
+    '''PIZZA to messages json file, should not crash and return bad request'''
+    client.request("PIZZA", "/messages")
+    response = client.getresponse()
+    client.close()
+    return response.status == HTTPStatus.BAD_REQUEST
+
+def post_server_forbidden():
+    '''POST to server.py, should return unauthorized'''
+    client.request("POST", "server.py")
+    response = client.getresponse()
+    client.close()
+    return response.status == HTTPStatus.FORBIDDEN
+
+def delete_not_existing_message():
+    '''Attempt to DELETE message which is not contained in json file'''
+    json_object = '{"id": "unique id given number of chars", "text": "irrelevant"}'
+    msg = bytes(json_object, encoding="utf-8")
+    headers = {
+        "Content-type": "application/json",
+        "Accept": "text/plain",
+        "Content-Length": len(msg),
+    }
+
+    client.request("DELETE", "/messages", body=msg, headers=headers)
+    response = client.getresponse()
+    client.close()
+    return response.status == HTTPStatus.NOT_FOUND
+
+def empty_request():
+    '''POST request to messages without id or text'''
+    client.request("POST", "/messages")
+    post_response = client.getresponse()
+    client.close()
+    client.request("PUT", "/messages")
+    put_response = client.getresponse()
+    client.close()
+    client.request("DELETE", "/messages")
+    delete_response = client.getresponse()
+    client.close()
+    return post_response.status == delete_response.status == put_response.status == HTTPStatus.BAD_REQUEST
+
+def put_no_id():
+    '''PUT request without defining ID to edit'''
+    json_object = '{"text": "irrelevant"}'
+    msg = bytes(json_object, encoding="utf-8")
+    headers = {
+        "Content-type": "application/json",
+        "Accept": "text/plain",
+        "Content-Length": len(msg),
+    }
+    client.request("PUT", "/messages", body=msg, headers=headers)
+    response = client.getresponse()
+    client.close()
+    return response.status == HTTPStatus.BAD_REQUEST
 
 test_functions = [
     server_returns_valid_response_code,
@@ -322,6 +355,11 @@ test_functions = [
     test_messages_put_edit,
     test_messages_put_create,
     test_messages_delete,
+    test_messages_pizza,
+    post_server_forbidden,
+    delete_not_existing_message,
+    empty_request,
+    put_no_id,
 ]
 
 

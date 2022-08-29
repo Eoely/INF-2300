@@ -1129,46 +1129,10 @@
     },
     {
         "id": "284",
-        "text": "Sula nebouxii"
+        "text": "POST Test text"
     },
     {
         "id": "285",
-        "text": "Hippotragus niger"
-    },
-    {
-        "id": "286",
-        "text": "Bettongia penicillata"
-    },
-    {
-        "id": "287",
-        "text": "Fulica cristata"
-    },
-    {
-        "id": "288",
-        "text": "Orcinus orca"
-    },
-    {
-        "id": "289",
-        "text": "Lorythaixoides concolor"
-    },
-    {
-        "id": "290",
-        "text": "Herpestes javanicus"
-    },
-    {
-        "id": "291",
-        "text": "Anser caerulescens"
-    },
-    {
-        "id": "292",
-        "text": "Cochlearius cochlearius"
-    },
-    {
-        "id": "293",
-        "text": "Varanus salvator"
-    },
-    {
-        "id": "post test id",
-        "text": "testing testing"
+        "text": "POST Test text"
     }
 ]
