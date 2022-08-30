@@ -81,7 +81,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             else:
                 self.bad_request()
 
-        else:
+        else: #check path root
             if method == "GET":
                 self.handle_get(path)
             elif method == "POST":
@@ -100,14 +100,14 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             data = self.rfile.readline().strip().decode()
             if data.startswith("Content-Length"):
                 content_len = int(data.split()[-1])
-        return self.rfile.readline(content_len).decode('utf-8')
+        res = self.rfile.readline(content_len).decode('utf-8')
+        return res
 
     def handle_post(self, path):
         valid_paths = ("test.txt", "./test.txt")
         if path not in valid_paths:
             return self.respond_status(HTTPStatus.FORBIDDEN)
         
-        # post_data = bytes(self.get_body(),encoding="utf-8")
         post_data = self.get_body()
         f = open(path, "a+")
         f.write(post_data)
@@ -124,8 +124,9 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         self.wfile.write(body)
 
     def respond_status(self, status_code):
-        response = f"{self.protocol}{status_code}"
+        response = f"{self.protocol}{status_code}\n{self.connection}"
         self.wfile.write(bytes(response, encoding="utf-8"))
+        self.wfile.write(b"\n")
 
     def get_data_from_path(self, path):
         if path == "/":
@@ -142,7 +143,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         self.respond_with_body(HTTPStatus.OK, body)
 
     def messages_handle_post(self, path):
-        post_data = bytes(self.get_body(),encoding="utf-8")
+        post_data = self.get_body()
 
         try:
             post_data_json = json.loads(post_data)
@@ -164,7 +165,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             messages.append(data_with_id)
             json.dump(messages, f, indent = 4)
         
-        self.respond_with_body(HTTPStatus.CREATED, post_data)
+        self.respond_with_body(HTTPStatus.CREATED, bytes(str(data_with_id),encoding='utf-8'))
     
     def messages_handle_put(self, path):
         put_data = self.get_body()
@@ -193,7 +194,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         with open(path, "w") as file:
             json.dump(messages, file, indent = 4)
 
-        self.respond_status(HTTPStatus.OK if edited == True else HTTPStatus.CREATED)
+        self.respond_status(HTTPStatus.NO_CONTENT if edited == True else HTTPStatus.CREATED)
 
 
     def messages_handle_delete(self, path):
