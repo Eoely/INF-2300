@@ -53,7 +53,10 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         if path == "/messages":
             path = "messages.json"
 
-        traversal_attack = path.startswith("..")
+        if path.startswith("/") and path != "/":
+            path = '.' + path
+
+        traversal_attack = True if ".." in path else False
         excluded_filetypes = ('.py') #Tuple, accepts multiple filetypes
         forbidden_recourse = path.endswith(excluded_filetypes)
         file_exists = exists(path)
@@ -89,20 +92,23 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
     def handle_get(self, path):
         body = self.get_data_from_path(path)
         self.respond_with_body(HTTPStatus.OK, body)
-    
+
+    def get_body(self):
+        data = None
+        content_len = 0
+        while data != '':
+            data = self.rfile.readline().strip().decode()
+            if data.startswith("Content-Length"):
+                content_len = int(data.split()[-1])
+        return self.rfile.readline(content_len).decode('utf-8')
+
     def handle_post(self, path):
         valid_paths = ("test.txt", "./test.txt")
         if path not in valid_paths:
             return self.respond_status(HTTPStatus.FORBIDDEN)
         
-        content_len = 0
-        data = None
-        while data != '':
-            data = self.rfile.readline().strip().decode()
-            if data.startswith("Content-Length"):
-                content_len = int(data.split()[-1])
-        
-        post_data = self.rfile.readline(content_len).decode('utf-8')
+        # post_data = bytes(self.get_body(),encoding="utf-8")
+        post_data = self.get_body()
         f = open(path, "a+")
         f.write(post_data)
         f.close()
@@ -136,14 +142,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         self.respond_with_body(HTTPStatus.OK, body)
 
     def messages_handle_post(self, path):
-        content_len = 0
-        data = None
-        while data != '':
-            data = self.rfile.readline().strip().decode()
-            if data.startswith("Content-Length"):
-                content_len = int(data.split()[-1])
-
-        post_data = self.rfile.readline(content_len)
+        post_data = bytes(self.get_body(),encoding="utf-8")
 
         try:
             post_data_json = json.loads(post_data)
@@ -154,28 +153,22 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             return self.bad_request()
 
         with open(path, 'r') as f:
-            data = json.load(f)
-            last_id = data[-1]["id"]
+            messages = json.load(f)
+            last_id = messages[-1]["id"]
         
         data_with_id = {}
-        data_with_id["id"] = str(int(last_id) + 1)
+        data_with_id["id"] = last_id + 1
         data_with_id["text"] = post_data_json["text"]
 
         with open(path,'w') as f:
-            data.append(data_with_id)
-            json.dump(data, f, indent = 4)
+            messages.append(data_with_id)
+            json.dump(messages, f, indent = 4)
         
         self.respond_with_body(HTTPStatus.CREATED, post_data)
     
     def messages_handle_put(self, path):
-        content_len = 0
-        data = None
-        while data != '':
-            data = self.rfile.readline().strip().decode()
-            if data.startswith("Content-Length"):
-                content_len = int(data.split()[-1])
+        put_data = self.get_body()
 
-        put_data = self.rfile.readline(content_len).decode('utf-8')
         try:
             put_data_json = json.loads(put_data)
         except:
@@ -204,14 +197,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
 
 
     def messages_handle_delete(self, path):
-        content_len = 0
-        data = None
-        while data != '':
-            data = self.rfile.readline().strip().decode()
-            if data.startswith("Content-Length"):
-                content_len = int(data.split()[-1])
-
-        delete_data = self.rfile.readline(content_len).decode('utf-8')
+        delete_data = self.get_body()
 
         try:
             delete_data_json = json.loads(delete_data)

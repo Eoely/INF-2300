@@ -1,11 +1,11 @@
 import socketserver
 import threading
+import os
+import json
 from server import MyTCPHandler as HTTPHandler
 from http import HTTPStatus
 from http.client import HTTPConnection, BadStatusLine
-import os
 from random import shuffle
-import json
 """
 Written by: Raymon Skjørten Hansen
 Email: raymon.s.hansen@uit.no
@@ -205,20 +205,20 @@ def test_messages_post():
 
     client.request("POST", "/messages", body=msg, headers=headers)
     response = client.getresponse()
-    body = response.read().decode('utf-8')
-    # body = client.getresponse().read().decode('utf-8')
+    body = response.read().decode()
     client.close()
 
     #Confirm last message is test_id
     with open(messages_file) as f:
         result_messages = json.load(f)
         last_message_text = result_messages[-1]["text"]
+    
     return last_message_text == test_text and response.status == HTTPStatus.CREATED
 
 def test_messages_put_edit():
     """PUT to messages should edit existing object, assume first message has id "1"."""
 
-    json_object = '{"id": "1", "text": "put test message"}'
+    json_object = '{"id": 1, "text": "put test message"}'
     msg = bytes(json_object, encoding="utf-8")
     headers = {
         "Content-type": "application/json",
@@ -241,7 +241,7 @@ def test_messages_put_create():
     test_id = "new id put test"
 
     #Perfrom request
-    json_object = '{"id": "new id put test", "text": "put test message"}'
+    json_object = '{"id": 50000000000, "text": "put test message"}'
     msg = bytes(json_object, encoding="utf-8")
     headers = {
         "Content-type": "application/json",
@@ -297,7 +297,7 @@ def post_server_forbidden():
 
 def delete_not_existing_message():
     '''Attempt to DELETE message which is not contained in json file'''
-    json_object = '{"id": "unique id given number of chars", "text": "irrelevant"}'
+    json_object = '{"id": 6000000000000000, "text": "irrelevant"}'
     msg = bytes(json_object, encoding="utf-8")
     headers = {
         "Content-type": "application/json",
