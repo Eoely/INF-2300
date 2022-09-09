@@ -196,7 +196,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         edited = False
         for idx, message in enumerate(messages):
             if message["id"] == message_id:
-                messages[idx] = put_data_json
+                messages[idx]["text"] = put_data_json["text"]
                 edited = True 
 
         if not edited:
