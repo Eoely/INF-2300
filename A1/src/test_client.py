@@ -193,7 +193,7 @@ def test_messages_get():
     return MESSAGES_BODY == body
 
 def test_messages_post():
-    """POST to test-file should respond with correct content_length."""
+    """POST- request to messages, returns created entry."""
     test_text ="POST Test text"
     json_object = '{"text": "POST Test text"}'
     msg = bytes(json_object, encoding="utf-8")
@@ -208,7 +208,7 @@ def test_messages_post():
     body = response.read().decode()
     client.close()
 
-    #Confirm last message is test_id
+    #Confirm last message is request, same text
     with open(messages_file) as f:
         result_messages = json.load(f)
         last_message_text = result_messages[-1]["text"]
@@ -234,13 +234,13 @@ def test_messages_put_edit():
     with open(messages_file) as data_file:
         messages = json.load(data_file)
 
-    return messages[0] == json.loads(json_object) and response.status == HTTPStatus.OK
+    #Should return NO_CONTENT on success
+    return messages[0] == json.loads(json_object) and response.status == HTTPStatus.NO_CONTENT
 
 def test_messages_put_create():
     """PUT with non-existing ID, should NOT create message."""
     test_id = "new id put test"
 
-    #Perfrom request
     json_object = '{"id": 50000000000, "text": "put test message"}'
     msg = bytes(json_object, encoding="utf-8")
     headers = {
@@ -282,7 +282,7 @@ def test_messages_delete():
 # -------- SPECIAL CASES ---------
 
 def test_messages_pizza():
-    '''PIZZA to messages json file, should not crash and return bad request'''
+    '''PIZZA to messages json file, should not crash, only return bad request'''
     client.request("PIZZA", "/messages")
     response = client.getresponse()
     client.close()
@@ -311,7 +311,7 @@ def delete_not_existing_message():
     return response.status == HTTPStatus.NOT_FOUND
 
 def empty_request():
-    '''POST request to messages without id or text'''
+    '''Empty requests to messages without id or text'''
     client.request("POST", "/messages")
     post_response = client.getresponse()
     client.close()

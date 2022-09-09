@@ -42,14 +42,17 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         make additional methods to organize the flow with which a request is handled by
         this method. But it all starts here!
         """
+        #Generic headers which does not change
         self.protocol = "HTTP/1.1 "
         self.content_type = "Content-Type: text/html; charset=utf-8\n"
         self.connection = "Connection: close\n"
 
+        #Read generic data from request
         data = self.rfile.readline().strip()
         method = data.split()[0].decode()
         path = data.split()[1].decode()
 
+        #Safety checks and path syntax
         if path == "/messages":
             path = "messages.json"
 
@@ -94,6 +97,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         self.respond_with_body(HTTPStatus.OK, body)
 
     def get_body(self):
+        '''Get the request body'''
         data = None
         content_len = 0
         while data != '':
@@ -117,6 +121,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         self.respond_with_body(HTTPStatus.CREATED, response_body)
 
     def respond_with_body(self, status, body):
+        '''Generic response function with body'''
         content_length = f"Content-Length: {len(body)}\n"
         headers = f"{self.protocol}{status}\n{self.content_type}{content_length}{self.connection}"
         self.wfile.write(bytes(headers, encoding="utf-8"))
@@ -124,11 +129,13 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         self.wfile.write(body)
 
     def respond_status(self, status_code):
+        '''Generic response function without body'''
         response = f"{self.protocol}{status_code}\n{self.connection}"
         self.wfile.write(bytes(response, encoding="utf-8"))
         self.wfile.write(b"\n")
 
     def get_data_from_path(self, path):
+        '''Read content from file'''
         if path == "/":
             path = "index.html"
         
@@ -136,7 +143,6 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         data = f.read()
         f.close()
         return data
-
     
     def messages_handle_get(self, path):
         body = self.get_data_from_path(path)
@@ -153,14 +159,17 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         if post_data_json.get("text") == None:
             return self.bad_request()
 
+        #Load json database
         with open(path, 'r') as f:
             messages = json.load(f)
             last_id = messages[-1]["id"]
         
+        #Create new object to insert to database with free id
         data_with_id = {}
         data_with_id["id"] = last_id + 1
         data_with_id["text"] = post_data_json["text"]
 
+        #Add to database
         with open(path,'w') as f:
             messages.append(data_with_id)
             json.dump(messages, f, indent = 4)
@@ -175,6 +184,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         except:
             return self.bad_request()
 
+        #Request body does not contain both elements, bad request
         if put_data_json.get("text") == None or put_data_json.get("id") == None:
             return self.bad_request()
 
@@ -182,6 +192,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         with open(path,'r') as f:
             messages = json.load(f)
 
+        #Replace mesage with request message
         edited = False
         for idx, message in enumerate(messages):
             if message["id"] == message_id:
@@ -205,6 +216,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         except:
             return self.bad_request()
 
+        #Does not contain ID, bad request
         if delete_data_json.get("id") == None:
             return self.bad_request()
         message_id = delete_data_json["id"]
@@ -213,7 +225,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             messages = json.load(data_file)
 
         deleted = False    
-
+        #Delete message from database, and write back
         for message in messages:
             if message["id"] == message_id:
                 messages.remove(message)
@@ -222,6 +234,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         with open(path, "w") as file:
             json.dump(messages, file, indent = 4)
 
+        #No content if successful, else 404 not found
         self.respond_status(HTTPStatus.NO_CONTENT if deleted else HTTPStatus.NOT_FOUND)
     
     def bad_request(self):
