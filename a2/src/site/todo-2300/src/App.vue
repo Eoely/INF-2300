@@ -1,28 +1,23 @@
 
 <template>
   <header>
-    <h1>'TODO'</h1>
+    <h1>'TODO INF-2300'</h1>
   </header>
 
-  <body>
-    <div class="container">
-      <div class="addnew">
-        <input type="button" value="Confirm" @click="appendTask">
-        <input v-model="newTaskName">
-      </div>
-      <div class="rest">
-        <input type="button" value="delete all" @click="deleteAllTasks">
-        <ul style="list-style-type:none">
-          <li v-for="task in tasks" class="todoitem">
-            <input type="button" class="deletebutton" value="X" @click="deleteTask(task.id)">
-            <input type="button" :value="task.done ? 'Undo' : 'Complete'" @click="completeTask(task.id)">
-            <input type="button" value="Edit" @click="updateTaskName(task.id)">
-            <input v-model="task.name" :class="{completedTask: task.done}" @change="testfunc()">
-          </li>
-        </ul>
-      </div>
-    </div>
-  </body>
+  <div style="border: 0.0em solid red;">
+    <input v-model="newTaskName" placeholder="New task" size="50">
+    <input type="button" value="Confirm" @click="appendTask">
+    <input type="button" value="delete all" @click="deleteAllTasks">
+
+    <ul>
+      <li v-for="task in tasks" class="todoitem">
+        <input v-model="task.name" :class="{completedTask: task.done}" size="50">
+        <input type="checkbox" :checked="task.done" @click="completeTask(task.id)">
+        <input type="button" class="deletebutton" value="X" @click="deleteTask(task.id)">
+        <input type="button" value="Save" @click="updateTaskName(task.id)">
+      </li>
+    </ul>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -35,64 +30,54 @@ type Task = {
   "name": string,
 };
 
+const api_url = "http://127.0.0.1:5000/api/items/"
 const tasks = ref<Task[]>([]);
-const isAddingNew = ref(false);
 const newTaskName = ref('')
 
-const getTasks = () => axios.get('http://127.0.0.1:5000/api/items/').then(response => tasks.value = response.data["items"]);
+const getTasks = () => axios.get(api_url)
+  .then(response => tasks.value = response.data["items"])
+  .catch(error => alertError(error.request.response));
 
 onMounted(getTasks);
 
-const showAddTask = () => isAddingNew.value = !isAddingNew.value;
-
-const testfunc = () => console.log('this is a test');
-
-
-const deleteTask = async (id: number) => {
-  await axios.delete(`http://127.0.0.1:5000/api/items/${id}`)
-    .then(response => console.log('delres', response.data))
-    .catch(error => console.log('delerr', error));
-
-  getTasks();
+const alertError = (error: string) => {
+  const parsedError = JSON.parse(error);
+  alert(`${parsedError.Message}: ${parsedError.Code}\n${parsedError.Description}`)
 }
 
+const deleteTask = async (id: number) => {
+  await axios.delete(`${api_url}${id}`)
+    .then(getTasks)
+    .catch(error => alertError(error.request.response));
+}
+
+
 const completeTask = async (id: number) => {
-  let task = tasks.value.find(t => t.id == id);
-
-  if (task) {
-    task.done = !task.done;
-    console.log('task complete', task);
-
-    await axios.put(`http://127.0.0.1:5000/api/items/${id}`, task)
-      .then(response => console.log('putres', response))
-      .catch(error => console.log('puterr', error));
-
-    getTasks();
+  const task = tasks.value.find(t => t.id === id);
+  let updatedTask = { ...task };
+  if (updatedTask) {
+    updatedTask.done = !updatedTask.done;
+    await axios.put(`${api_url}${id}`, updatedTask)
+      .then(getTasks)
+      .catch(error => alertError(error.request.response))
   } else {
-    console.error('No task with that id was found');
+    alertError('No task with that id was found');
   }
 
 }
 
 const updateTaskName = async (id: number) => {
-  let task = tasks.value.find(t => t.id == id);
-  await axios.put(`http://127.0.0.1:5000/api/items/${id}`, task)
-    .then(response => console.log('putres', response))
-    .catch(error => console.log('puterr', error));
-
-  getTasks();
-
+  let task = tasks.value.find(t => t.id === id);
+  await axios.put(`${api_url}${id}`, task)
+    .then(getTasks)
+    .catch(error => alertError(error.request.response));
 }
 
 const deleteAllTasks = async () => {
-  const reqs = tasks.value.map(task => axios.delete(`http://127.0.0.1:5000/api/items/${task.id}`));
-  //TODO: Handle errors.
-  await axios.all(reqs)
-    .then(data => console.log('deldata', data))
-    .catch(error => console.log('delallerr', error));
-
-  getTasks();
-
+  const requests = tasks.value.map(task => axios.delete(`${api_url}${task.id}`));
+  await axios.all(requests)
+    .then(getTasks)
+    .catch(error => alertError(error.request.response));
 }
 
 const appendTask = async () => {
@@ -100,61 +85,31 @@ const appendTask = async () => {
     "name": newTaskName.value,
   }
 
-  await axios.post('http://127.0.0.1:5000/api/items/', newTask)
-    .then(response => console.log(response.data.item))
-    .catch(error => console.error(error))
+  await axios.post(api_url, newTask)
+    .then(getTasks)
+    .catch(error => alertError(error.request.response));
 
   newTaskName.value = '';
-  isAddingNew.value = false;
-
-  //Could also just append response to tasks array
-  getTasks();
 };
 
 </script>
 
 
 <style scoped>
-/* header {
+ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+header {
   line-height: 1.5;
-} */
+}
 
 .completedTask {
-  background-color: green;
-}
-
-.container {
-  border: 0.05em solid red;
-  position: relative;
-  margin: 1rem;
-
-}
-
-.todoitem {
-  position: absolute;
-  width: 100%;
-  height: 100vh;
+  background-color: rgb(108, 193, 108);
 }
 
 .deletebutton {
   background-color: red
-}
-
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  /* .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  } */
 }
 </style>
