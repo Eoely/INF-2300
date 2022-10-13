@@ -1,22 +1,21 @@
 
 <template>
-  <header>
-    <h1>'TODO INF-2300'</h1>
-  </header>
-
-  <div style="border: 0.0em solid red;">
-    <input v-model="newTaskName" placeholder="New task" size="50">
-    <input type="button" value="Confirm" @click="appendTask">
-    <input type="button" value="delete all" @click="deleteAllTasks">
-
-    <ul>
-      <li v-for="task in tasks" class="todoitem">
-        <input v-model="task.name" :class="{completedTask: task.done}" size="50">
-        <input type="checkbox" :checked="task.done" @click="completeTask(task.id)">
-        <input type="button" class="deletebutton" value="X" @click="deleteTask(task.id)">
-        <input type="button" value="Save" @click="updateTaskName(task.id)">
-      </li>
-    </ul>
+  <div class="parent">
+    <head style="display: flex; padding-bottom: 40px;">
+      <h1>TODO INF-2300</h1>    
+      <input type="button" value="Delete all" @click="deleteAllTasks">
+    </head>
+    <div class="new">
+      <input v-model="newTaskName" placeholder="New task" size="50">
+      <input type="button" value="+" @click="appendTask">
+    </div>
+      <ul>
+        <li v-for="task in tasks" class="todoitem">
+          <input v-model="task.name" :class="{completedTask: task.done}" size="50" @change="updateTaskName(task.id)">
+          <input type="button" value="&#10004" class="button" style="background-color:rgb(142, 211, 142)" @click="completeTask(task.id)">
+          <input type="button" value="&#10006" class="button" style="background-color:rgb(221, 33, 33)" @click="deleteTask(task.id)">
+        </li>
+      </ul>
   </div>
 </template>
 
@@ -45,71 +44,82 @@ const alertError = (error: string) => {
   alert(`${parsedError.Message}: ${parsedError.Code}\n${parsedError.Description}`)
 }
 
-const deleteTask = async (id: number) => {
-  await axios.delete(`${api_url}${id}`)
+const deleteTask = (id: number) => {
+  axios.delete(`${api_url}${id}`)
     .then(getTasks)
     .catch(error => alertError(error.request.response));
 }
 
 
-const completeTask = async (id: number) => {
+const completeTask = (id: number) => {
   const task = tasks.value.find(t => t.id === id);
   let updatedTask = { ...task };
   if (updatedTask) {
     updatedTask.done = !updatedTask.done;
-    await axios.put(`${api_url}${id}`, updatedTask)
+    axios.put(`${api_url}${id}`, updatedTask)
       .then(getTasks)
       .catch(error => alertError(error.request.response))
   } else {
     alertError('No task with that id was found');
   }
-
 }
 
-const updateTaskName = async (id: number) => {
+const updateTaskName = (id: number) => {
   let task = tasks.value.find(t => t.id === id);
-  await axios.put(`${api_url}${id}`, task)
+
+  axios.put(`${api_url}${id}`, task)
     .then(getTasks)
     .catch(error => alertError(error.request.response));
 }
 
-const deleteAllTasks = async () => {
+const deleteAllTasks = () => {
   const requests = tasks.value.map(task => axios.delete(`${api_url}${task.id}`));
-  await axios.all(requests)
+
+  axios.all(requests)
     .then(getTasks)
     .catch(error => alertError(error.request.response));
 }
 
-const appendTask = async () => {
+const appendTask = () => {
   const newTask = {
     "name": newTaskName.value,
   }
 
-  await axios.post(api_url, newTask)
+  axios.post(api_url, newTask)
     .then(getTasks)
     .catch(error => alertError(error.request.response));
 
   newTaskName.value = '';
 };
-
 </script>
 
 
 <style scoped>
-ul {
+.parent {
+  text-align: center;
+}
+
+.new {
+  padding-right: 2.5em;
+}
+
+h1 {
+  margin: 0 auto;
+}
+
+ul, li {
   list-style: none;
   padding-left: 0;
+  padding-top: 5px;
 }
-
-header {
-  line-height: 1.5;
-}
-
 .completedTask {
-  background-color: rgb(108, 193, 108);
+  background-color: rgb(142, 211, 142);
 }
 
-.deletebutton {
-  background-color: red
+input, button {
+  font-size: inherit;
+  padding: 0.3em 0.4em;
+  margin: 0.1em 0.2em;
+  background-color: #fff;
 }
 </style>
