@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+    server:
+        build: ./server
+        container_name: 2300-server
+        ports:
+            - 5000:5000
+    site:
+        build: ./site
+        container_name: 2300-site
+        ports: 
+            - 5173:5173
+        volumes:
+            - ./site:/app
+        stdin_open: true
+        tty: true

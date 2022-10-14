@@ -1,0 +1,11 @@
+__pycache__/
+
+.gitignore
+
+Pipfile
+
+node_modules
+
+Pipfile.lock
+
+README.MD
