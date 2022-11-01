@@ -12,6 +12,9 @@ class TransportLayer:
     def __init__(self):
         self.timer = None
         self.timeout = 0.4  # Seconds
+        self.send_num = 0
+        self.recv_num = 0
+        self.prev_packet:Packet = None
 
     def with_logger(self, logger):
         self.logger = logger
@@ -23,15 +26,41 @@ class TransportLayer:
     def register_below(self, layer):
         self.network_layer = layer
 
-    def from_app(self, binary_data):
-        packet = Packet(binary_data)
-
+    def from_app(self, binary_data, is_ack=False):
         # Implement me!
+        if is_ack:
+            self.send_num += 1
 
+        packet = Packet(binary_data, is_ack,self.send_num)
+
+
+        if  self.prev_packet is None or self.prev_packet.seqn == self.send_num - 1: #ACK'd
+            self.logger.info(f"if hit")
+            self.prev_packet = packet
+        else:
+            packet = self.prev_packet
+
+        self.logger.info(f"from_app sending {packet.data}{packet.seqn}")
         self.network_layer.send(packet)
+        print("\n")
 
-    def from_network(self, packet):
+
+    def from_network(self, packet: Packet):
         self.application_layer.receive_from_transport(packet.data)
+        self.logger.info(f"from_network recv {packet.data}{packet.seqn}")
+
+        if packet.is_ack == False:
+            self.logger.info(f"expected {self.recv_num} got {packet.seqn}")
+
+        if packet.seqn == self.recv_num and packet.is_ack == False:
+            print("why no hit")
+            self.recv_num += 1
+            self.from_app(b'', True)
+            self.send_num += 1
+        
+
+        print("\n")
+
         # Implement me!
 
     def reset_timer(self, callback, *args):
