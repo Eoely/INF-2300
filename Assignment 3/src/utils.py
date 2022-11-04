@@ -19,7 +19,10 @@ class IterableBytes:
         # Return the next chunk of bytes from the pool of byte
         if self.pos >= len(self.bytes):
             return None
-        chunk = self.bytes[self.pos : self.pos + self.chunk_size]
+        try:
+            chunk = self.bytes[self.pos : self.pos + self.chunk_size]
+        except:
+            print("kys dritt kode")
         self.pos += self.chunk_size
         return chunk
 
