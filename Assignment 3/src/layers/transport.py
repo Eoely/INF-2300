@@ -28,18 +28,21 @@ class TransportLayer:
     def from_app(self, binary_data, is_ack=False):#Send
         # Alice sends data packets
         # Bob sends ACKS
-        if is_ack:
-            packet = Packet(binary_data, is_ack, self.seqn)
-        else:
+        tmp = 0
+        packet = Packet(binary_data, is_ack, self.seqn)
+        if not is_ack:
             if self.prev_packet == None or self.seqn > self.prev_packet.seqn: #Prev packet ACK'd
-                packet = Packet(binary_data, is_ack, self.seqn)
                 self.prev_packet = packet
             else:
+                tmp = packet
                 packet = self.prev_packet
 
-        self.logger.info(f"from_app sending {packet.data}{packet.seqn}")
+
+        tmp_num = packet.seqn
         self.network_layer.send(packet)
-        print("eskettit\n") #TODO: try to send packet after sending prev_packet
+        while self.seqn == tmp_num and not is_ack:
+            self.logger.info(f"from_app sending {packet.data}{packet.seqn}")
+            self.network_layer.send(packet)
 
 
     def from_network(self, packet: Packet):#Recv
@@ -48,10 +51,10 @@ class TransportLayer:
         if packet.is_ack:
             if packet.seqn == self.seqn:
                 self.seqn += 1
-                # self.logger.info(f"Alice received ack {packet.data}{packet.seqn}")
+                self.logger.info(f"Alice received ack {packet.data}{packet.seqn}")
                 return
             else:
-                self.logger.error(f"wtf happened??")
+                self.logger.error(f"ACK FAULT expected {self.seqn} got {packet.seqn}")
                 raise Exception("lolzzz")
 
         #BOB recieve message
@@ -61,8 +64,8 @@ class TransportLayer:
             self.application_layer.receive_from_transport(packet.data)
             self.prev_packet = packet
             self.from_app(b'',True)
-            return
-        elif packet.seqn - self.prev_packet.seqn == 0:
+            return  
+        elif packet.seqn == self.prev_packet.seqn:
             self.logger.info(f"Bob2 recieved message {packet.data}{packet.seqn}")
             self.from_app(b'',True)
         else:

@@ -39,13 +39,14 @@ class Sim:
 
     def should_continue(self):
         # We continue so long as the data isn't received
-        # print(self.bob.received, self.alice.original_data)
+        print(self.bob.received, self.alice.original_data)
         return self.bob.received != self.alice.original_data
 
     def run(self):
         # This is the main program loop
         while self.should_continue():
             self.alice.tick()
+            print("\n---NEW TICK---\n")
             # Traps 'Ctrl-C' and try to exit nicely.
             signal(SIGINT, sigint_handler)
 
