@@ -14,6 +14,7 @@ class TransportLayer:
         self.seqn = 0
         self.num_acks = 0
         self.prev_packet:Packet = None
+        self.ack_data = b''
 
     def with_logger(self, logger):
         self.logger = logger
@@ -29,19 +30,21 @@ class TransportLayer:
         # Alice sends data packets
         packet = Packet(binary_data, False, self.seqn)
         
+        #If the previous packet was ACK'd, send the new data.
         if self.prev_packet == None or self.seqn > self.prev_packet.seqn: #Prev packet ACK'd
             self.prev_packet = packet
+        #Otherwise send the old packet
         else:
             packet = self.prev_packet
 
-        tmp_num = packet.seqn
-        while self.seqn == tmp_num:
+        #Send the packet until ACK'd
+        old_seqn = packet.seqn
+        while self.seqn == old_seqn:
             self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
             self.network_layer.send(packet)
 
 
     def from_network(self, packet: Packet):#Recv
-
         #ALICE receives ACK
         if packet.is_ack:
             if packet.seqn == self.seqn:
@@ -52,23 +55,26 @@ class TransportLayer:
                 self.logger.error(f"ACK FAULT expected {self.seqn} got {packet.seqn}")
                 raise Exception("Receive ACK exception")
 
-        #BOB recieve message
+        #BOB recieve message - NOT ACK
+        print("check",packet.data, len(packet.data))
+        # if len(packet.data) > 4:
+        #     # print("lol",packet.data)
+        #     return
+
+        #If this message is new: recieve data and send ack
         if self.prev_packet == None or packet.seqn - self.prev_packet.seqn == 1:
             self.logger.info(f"Bob recieved message {packet.data}{packet.seqn}")
             self.seqn = packet.seqn
             self.application_layer.receive_from_transport(packet.data)
             self.prev_packet = packet
 
-        elif packet.seqn == self.prev_packet.seqn:
-            self.logger.info(f"Bob2 recieved message {packet.data}{packet.seqn}")
-            
-        else:
-            self.logger.info(f"Should never hittt{packet.data}{packet.seqn}")
+        #Not expected or previous packet => Message got skipped, raise exception 
+        elif packet.seqn != self.prev_packet.seqn:
+            self.logger.error(f"Should never hittt{packet.data}{packet.seqn}")
             raise Exception("Receive MSG exception")
 
-        ack_packet = Packet(b'', True, self.seqn)
+        ack_packet = Packet(self.ack_data, True, self.seqn)
         self.network_layer.send(ack_packet)
-        # Implement me!
 
     def reset_timer(self, callback, *args):
         # This is a safety-wrapper around the Timer-objects, which are

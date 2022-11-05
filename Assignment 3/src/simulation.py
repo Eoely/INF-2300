@@ -39,7 +39,7 @@ class Sim:
 
     def should_continue(self):
         # We continue so long as the data isn't received
-        # print(self.bob.received, self.alice.original_data)
+        print(self.bob.received, self.alice.original_data)
         return self.bob.received != self.alice.original_data
 
     def run(self):
