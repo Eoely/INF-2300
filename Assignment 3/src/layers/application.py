@@ -19,7 +19,6 @@ class ApplicationLayer:
             return
 
         next_bytes = self.payload.get_chunk()
-        print(next_bytes)
         self.transport_layer.from_app(next_bytes)
 
     def receive_from_transport(self, binary_data):
