@@ -11,7 +11,7 @@
 PACKET_NUM = 10
 
 # The size of each packet in bytes.
-# The data in each packet will be uppercase ASCII letters only!
+# The data in each packetp will be uppercase ASCII letters only!
 PACKET_SIZE = 4
 
 # The seed ensures a new run is identical to the last
@@ -22,7 +22,7 @@ RANDOM_RUN = False
 # The chance that each packet is dropped
 DROP_CHANCE = 0.0
 # The chance that the data in a packet is changed
-CORRUPT_CHANCE = 0.0
+CORRUPT_CHANCE = 0.1
 
 # The chance that the packet is delayed
 DELAY_CHANCE = 0.0
