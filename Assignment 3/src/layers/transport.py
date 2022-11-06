@@ -1,4 +1,5 @@
 from copy import copy
+import re
 from threading import Timer
 
 from packet import Packet
@@ -56,11 +57,10 @@ class TransportLayer:
                 raise Exception("Receive ACK exception")
 
         #BOB recieve message - NOT ACK
-        print("check",packet.data, len(packet.data))
-        # if len(packet.data) > 4:
-        #     # print("lol",packet.data)
-        #     return
-
+        #Message is not corrupted, dont ACK => Alice will send packet again
+        if self.is_corrupted(packet.data):
+            return
+        
         #If this message is new: recieve data and send ack
         if self.prev_packet == None or packet.seqn - self.prev_packet.seqn == 1:
             self.logger.info(f"Bob recieved message {packet.data}{packet.seqn}")
@@ -88,3 +88,8 @@ class TransportLayer:
         # after self.timeout seconds.
         self.timer = Timer(self.timeout, callback, *args)
         self.timer.start()
+
+    def is_corrupted(self, data):
+        res = re.match(r'(?:[A-Z]+)$' ,str(data)[2:-1]) == None
+        print(data, res)
+        return res

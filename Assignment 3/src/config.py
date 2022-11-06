@@ -8,7 +8,7 @@
 # Keep the number of packets low in the beginning
 
 # Number of packets per simulation
-PACKET_NUM = 10
+PACKET_NUM = 100
 
 # The size of each packet in bytes.
 # The data in each packetp will be uppercase ASCII letters only!
@@ -22,9 +22,9 @@ RANDOM_RUN = False
 # The chance that each packet is dropped
 DROP_CHANCE = 0.0
 # The chance that the data in a packet is changed
-CORRUPT_CHANCE = 0.1
+CORRUPT_CHANCE = 0.0
 
 # The chance that the packet is delayed
-DELAY_CHANCE = 0.0
+DELAY_CHANCE = 0.5
 # Delay in seconds
 DELAY_AMOUNT = 0.5
