@@ -51,10 +51,10 @@ class TransportLayer:
             if packet.seqn == self.seqn:
                 self.seqn += 1
                 self.logger.info(f"Alice received ack {packet.data}{packet.seqn}")
-                return
-            else:
-                self.logger.error(f"ACK FAULT expected {self.seqn} got {packet.seqn}")
-                raise Exception("Receive ACK exception")
+            return
+            # else:
+            #     self.logger.error(f"ACK FAULT expected {self.seqn} got {packet.seqn}")
+            #     raise Exception("Receive ACK exception")
 
         #BOB recieve message - NOT ACK
         #Message is not corrupted, dont ACK => Alice will send packet again
@@ -70,9 +70,8 @@ class TransportLayer:
 
         #Not expected or previous packet => Message got skipped, raise exception 
         elif packet.seqn != self.prev_packet.seqn:
-            self.logger.error(f"Should never hittt{packet.data}{packet.seqn}")
-            raise Exception("Receive MSG exception")
-
+            return
+        
         ack_packet = Packet(self.ack_data, True, self.seqn)
         self.network_layer.send(ack_packet)
 
@@ -87,9 +86,10 @@ class TransportLayer:
         # callback(a function) is called with *args as arguments
         # after self.timeout seconds.
         self.timer = Timer(self.timeout, callback, *args)
+        self.timer.daemon = True
         self.timer.start()
 
     def is_corrupted(self, data):
         res = re.match(r'(?:[A-Z]+)$' ,str(data)[2:-1]) == None
-        print(data, res)
+        # print(data, res)
         return res
