@@ -12,10 +12,11 @@ class TransportLayer:
     def __init__(self):
         self.timer = None
         self.timeout = 0.4  # Seconds
-        self.seqn = 0
-        self.num_acks = 0
-        self.prev_packet:Packet = None
+        self.base = 1
+        self.nextseqnum = 1
+        self.expectedseqnum = 1
         self.ack_data = b''
+        self.window = list() #TODO: Create class with own functions for easy pop append
 
     def with_logger(self, logger):
         self.logger = logger
@@ -29,52 +30,42 @@ class TransportLayer:
 
     def from_app(self, binary_data):
         # Alice sends data packets
-        packet = Packet(binary_data, False, self.seqn)
+        packet = Packet(binary_data, False, self.nextseqnum)
         
-        #If the previous packet was ACK'd, send the new data.
-        if self.prev_packet == None or self.seqn > self.prev_packet.seqn: #Prev packet ACK'd
-            self.prev_packet = packet
-        #Otherwise send the old packet
-        else:
-            packet = self.prev_packet
+        self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
+        if self.base == self.nextseqnum:
+            print("reset timer -- sending")
+            self.reset_timer(self.packet_timeout,[])
 
-        #Send the packet until ACK'd
-        old_seqn = packet.seqn
-        while self.seqn == old_seqn:
-            self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
-            self.network_layer.send(packet)
+        self.network_layer.send(packet)
+        self.nextseqnum += 1
 
 
     def from_network(self, packet: Packet):#Recv
         #ALICE receives ACK
         if packet.is_ack:
-            if packet.seqn == self.seqn:
-                self.seqn += 1
-                self.logger.info(f"Alice received ack {packet.data}{packet.seqn}")
-                return
+            if packet.seqn == self.expectedseqnum:
+                self.logger.info(f"Alice recieving ACK {packet.seqn}")
+                self.base = packet.seqn + 1
+                if self.base == self.nextseqnum:
+                    if self.timer.is_alive():
+                        self.timer.cancel()
+                    else:
+                        self.logger.error(f"timer not alive??")
+                else:
+                    print("reset timer -- recieving")
+                    self.reset_timer(self.packet_timeout,[])
             else:
-                self.logger.error(f"ACK FAULT expected {self.seqn} got {packet.seqn}")
-                raise Exception("Receive ACK exception")
-
-        #BOB recieve message - NOT ACK
-        #Message is not corrupted, dont ACK => Alice will send packet again
-        if self.is_corrupted(packet.data):
+                self.logger.error(f"ACK - Wrong seqn, expected {self.expectedseqnum} got {packet.seqn}")
             return
-        
-        #If this message is new: recieve data and send ack
-        if self.prev_packet == None or packet.seqn - self.prev_packet.seqn == 1:
-            self.logger.info(f"Bob recieved message {packet.data}{packet.seqn}")
-            self.seqn = packet.seqn
-            self.application_layer.receive_from_transport(packet.data)
-            self.prev_packet = packet
 
-        #Not expected or previous packet => Message got skipped, raise exception 
-        elif packet.seqn != self.prev_packet.seqn:
-            self.logger.error(f"Should never hittt{packet.data}{packet.seqn}")
-            raise Exception("Receive MSG exception")
-
-        ack_packet = Packet(self.ack_data, True, self.seqn)
+        #BOB recieve packet
+        self.logger.info(f"Bob recieving {packet.data}{packet.seqn}")
+        self.application_layer.receive_from_transport(packet.data)
+        ack_packet = Packet(self.ack_data, True, self.expectedseqnum)
+        self.logger.info(f"Bob sending ACK {ack_packet.seqn}")
         self.network_layer.send(ack_packet)
+        self.expectedseqnum += 1
 
     def reset_timer(self, callback, *args):
         # This is a safety-wrapper around the Timer-objects, which are
@@ -90,6 +81,9 @@ class TransportLayer:
         self.timer.start()
 
     def is_corrupted(self, data):
-        res = re.match(r'(?:[A-Z]+)$' ,str(data)[2:-1]) == None
-        print(data, res)
-        return res
+        return re.match(r'(?:[A-Z]+)$' ,str(data)[2:-1]) == None
+    
+    def packet_timeout(self):
+        quit()
+        print("hva skjer nåå")
+
