@@ -12,7 +12,7 @@ PACKET_NUM = 10
 
 # The size of each packet in bytes.
 # The data in each packetp will be uppercase ASCII letters only!
-PACKET_SIZE = 2
+PACKET_SIZE = 4
 
 # The seed ensures a new run is identical to the last
 RANDOM_SEED = 84737869  # I love you! :)

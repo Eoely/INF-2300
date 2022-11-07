@@ -1,6 +1,7 @@
 from copy import copy
 import re
 from threading import Timer
+import time
 
 from packet import Packet
 
@@ -39,24 +40,20 @@ class TransportLayer:
 
         self.network_layer.send(packet)
         self.nextseqnum += 1
+        time.sleep(0.2)
 
 
     def from_network(self, packet: Packet):#Recv
         #ALICE receives ACK
         if packet.is_ack:
-            if packet.seqn == self.expectedseqnum:
-                self.logger.info(f"Alice recieving ACK {packet.seqn}")
-                self.base = packet.seqn + 1
-                if self.base == self.nextseqnum:
-                    if self.timer.is_alive():
-                        self.timer.cancel()
-                    else:
-                        self.logger.error(f"timer not alive??")
-                else:
-                    print("reset timer -- recieving")
-                    self.reset_timer(self.packet_timeout,[])
+            self.logger.info(f"Alice recieving ACK {packet.seqn}")
+            self.base = packet.seqn + 1
+            if self.base == self.nextseqnum:
+                print("cancel timer -- receiving ACK")
+                self.timer.cancel()
             else:
-                self.logger.error(f"ACK - Wrong seqn, expected {self.expectedseqnum} got {packet.seqn}")
+                print("reset timer -- recieving ACK")
+                self.reset_timer(self.packet_timeout)
             return
 
         #BOB recieve packet
@@ -65,7 +62,7 @@ class TransportLayer:
         ack_packet = Packet(self.ack_data, True, self.expectedseqnum)
         self.logger.info(f"Bob sending ACK {ack_packet.seqn}")
         self.network_layer.send(ack_packet)
-        self.expectedseqnum += 1
+        self.expectedseqnum = self.expectedseqnum + 1
 
     def reset_timer(self, callback, *args):
         # This is a safety-wrapper around the Timer-objects, which are
@@ -84,6 +81,8 @@ class TransportLayer:
         return re.match(r'(?:[A-Z]+)$' ,str(data)[2:-1]) == None
     
     def packet_timeout(self):
-        quit()
+        # self.ex = self.nextseqnum
+        # quit()
+        # self.timeout = 23
         print("hva skjer nåå")
 
