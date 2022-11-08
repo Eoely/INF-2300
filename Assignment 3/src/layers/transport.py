@@ -17,8 +17,8 @@ class TransportLayer:
         self.nextseqnum = 1
         self.expectedseqnum = 1
         self.ack_data = b''
-        self.window_size = 4
-        self.window = ["filler"] #TODO: Create class with own functions for easy pop append
+        self.window_size = 4 #N
+        self.window = ["filler"] #Window array to contain packets
         self.last_ack = 0
 
     def with_logger(self, logger):
@@ -34,15 +34,12 @@ class TransportLayer:
     def from_app(self, binary_data):
         # Alice sends data packets
         packet = Packet(binary_data, False, self.nextseqnum)
-        self.logger.warning(f"Packet data {packet.data}{packet.seqn}")
         self.window.append(packet)
         if self.nextseqnum < self.base + self.window_size:
-            self.print_window()
             self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
             self.network_layer.send(packet)
 
             if self.base == self.nextseqnum:
-                print("reset timer -- sending")
                 self.reset_timer(self.packet_timeout)
 
         self.nextseqnum += 1
@@ -51,22 +48,20 @@ class TransportLayer:
 
     def from_network(self, packet: Packet):#Recv
         #ALICE receives ACK
+        #Shift base of window to packet after last acknowledged packet
         if packet.is_ack:
             self.logger.info(f"Alice recieving ACK {packet.seqn}")
             self.base = packet.seqn + 1
-            if self.base == self.nextseqnum:
-                print("cancel timer -- receiving ACK")
-                self.timer.cancel()
-            else:
-                print("reset timer -- recieving ACK")
-                self.reset_timer(self.packet_timeout)
             return
 
         #BOB recieve packet
+        #Packet is corrupted => Return out, same as packet got dropped
         if self.is_corrupted(packet):
             return
         
-        self.logger.info(f"Bob recieving {packet.data}{packet.seqn}")
+        self.logger.info(f"Bob recieving {packet.data}{packet.seqn}"),
+        #Acknowledge recieved pack
+        #If new packet, update values and send ack
         if packet.seqn == self.expectedseqnum:
             self.application_layer.receive_from_transport(packet.data)
             ack_packet = Packet(self.ack_data, True, self.expectedseqnum)
@@ -74,10 +69,12 @@ class TransportLayer:
             self.last_ack = ack_packet.seqn
             self.network_layer.send(ack_packet)
             self.expectedseqnum += 1
-        else:
-            ack_packet = Packet(self.ack_data, True, self.last_ack)
-            self.logger.info(f"Bob sending prev ACK {ack_packet.seqn}")
-            self.network_layer.send(ack_packet)
+        
+        # else: #If out of order send ack of last good packet TODO: NOT NEEDED???
+        #     ack_packet = Packet(self.ack_data, True, self.last_ack)
+        #     self.logger.info(f"Bob sending prev ACK {ack_packet.seqn}")
+        #     self.network_layer.send(ack_packet)
+        #     quit()
 
     
 
@@ -92,27 +89,17 @@ class TransportLayer:
         # callback(a function) is called with *args as arguments
         # after self.timeout seconds.
         self.timer = Timer(self.timeout, callback, *args)
-        self.timer.daemon = True
+        self.timer.daemon = True #Makes the sim quit after finishing
         self.timer.start()
 
     def is_corrupted(self, packet):
+        '''Returns True for corrupts packets, uses Regex to detect all caps all chars string'''
         return re.match(r'(?:[A-Z]+)$' ,str(packet.data)[2:-1]) == None
     
     def packet_timeout(self):
+        '''Callback function for timer, send all packets in window: [base : nextseqnum - 1]'''
         self.reset_timer(self.packet_timeout)
         for i in range(self.base,self.nextseqnum):
             packet = self.window[i]
             self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
             self.network_layer.send(self.window[i])
-
-
-    def print_window(self):
-        #TODO:print 1 less
-        try:
-            print("testing", self.window)
-            print("Already ACK'd",self.window[1:self.base - 1])
-            print("Sent, not ACK'd",self.window[self.base:self.nextseqnum - 1])
-            print("Can be sent",self.window[self.nextseqnum:self.base + self.window_size])
-            print("Not usable yet",self.window[self.base + self.window_size:])
-        except:
-            return
