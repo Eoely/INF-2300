@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import time
 from logging import basicConfig
 from logging import DEBUG as LOGGER_DEBUG
 from random import seed
@@ -45,6 +45,7 @@ class Sim:
     def run(self):
         # This is the main program loop
         while self.should_continue():
+            # time.sleep(0.08) #not needed afterall???
             self.alice.tick()
             print("\n---NEW TICK---\n")
             # Traps 'Ctrl-C' and try to exit nicely.

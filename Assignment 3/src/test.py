@@ -5,5 +5,7 @@ def callback_func():
 
 inst = Timer(0.6,callback_func,[])
 inst.run()
-for i in range(0,1000):
-    print(i)
+test = 10
+for i in range(0,test):
+    test += 1
+    print(i, test)

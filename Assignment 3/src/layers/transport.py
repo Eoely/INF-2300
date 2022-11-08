@@ -17,7 +17,9 @@ class TransportLayer:
         self.nextseqnum = 1
         self.expectedseqnum = 1
         self.ack_data = b''
-        self.window = list() #TODO: Create class with own functions for easy pop append
+        self.window_size = 4
+        self.window = ["filler"] #TODO: Create class with own functions for easy pop append
+        self.last_ack = 0
 
     def with_logger(self, logger):
         self.logger = logger
@@ -32,15 +34,19 @@ class TransportLayer:
     def from_app(self, binary_data):
         # Alice sends data packets
         packet = Packet(binary_data, False, self.nextseqnum)
-        
-        self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
-        if self.base == self.nextseqnum:
-            print("reset timer -- sending")
-            self.reset_timer(self.packet_timeout,[])
+        self.logger.warning(f"Packet data {packet.data}{packet.seqn}")
+        self.window.append(packet)
+        if self.nextseqnum < self.base + self.window_size:
+            self.print_window()
+            self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
+            self.network_layer.send(packet)
 
-        self.network_layer.send(packet)
+            if self.base == self.nextseqnum:
+                print("reset timer -- sending")
+                self.reset_timer(self.packet_timeout)
+
         self.nextseqnum += 1
-        time.sleep(0.2)
+
 
 
     def from_network(self, packet: Packet):#Recv
@@ -57,12 +63,23 @@ class TransportLayer:
             return
 
         #BOB recieve packet
+        if self.is_corrupted(packet):
+            return
+        
         self.logger.info(f"Bob recieving {packet.data}{packet.seqn}")
-        self.application_layer.receive_from_transport(packet.data)
-        ack_packet = Packet(self.ack_data, True, self.expectedseqnum)
-        self.logger.info(f"Bob sending ACK {ack_packet.seqn}")
-        self.network_layer.send(ack_packet)
-        self.expectedseqnum = self.expectedseqnum + 1
+        if packet.seqn == self.expectedseqnum:
+            self.application_layer.receive_from_transport(packet.data)
+            ack_packet = Packet(self.ack_data, True, self.expectedseqnum)
+            self.logger.info(f"Bob sending ACK {ack_packet.seqn}")
+            self.last_ack = ack_packet.seqn
+            self.network_layer.send(ack_packet)
+            self.expectedseqnum += 1
+        else:
+            ack_packet = Packet(self.ack_data, True, self.last_ack)
+            self.logger.info(f"Bob sending prev ACK {ack_packet.seqn}")
+            self.network_layer.send(ack_packet)
+
+    
 
     def reset_timer(self, callback, *args):
         # This is a safety-wrapper around the Timer-objects, which are
@@ -75,14 +92,27 @@ class TransportLayer:
         # callback(a function) is called with *args as arguments
         # after self.timeout seconds.
         self.timer = Timer(self.timeout, callback, *args)
+        self.timer.daemon = True
         self.timer.start()
 
-    def is_corrupted(self, data):
-        return re.match(r'(?:[A-Z]+)$' ,str(data)[2:-1]) == None
+    def is_corrupted(self, packet):
+        return re.match(r'(?:[A-Z]+)$' ,str(packet.data)[2:-1]) == None
     
     def packet_timeout(self):
-        # self.ex = self.nextseqnum
-        # quit()
-        # self.timeout = 23
-        print("hva skjer nåå")
+        self.reset_timer(self.packet_timeout)
+        for i in range(self.base,self.nextseqnum):
+            packet = self.window[i]
+            self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
+            self.network_layer.send(self.window[i])
 
+
+    def print_window(self):
+        #TODO:print 1 less
+        try:
+            print("testing", self.window)
+            print("Already ACK'd",self.window[1:self.base - 1])
+            print("Sent, not ACK'd",self.window[self.base:self.nextseqnum - 1])
+            print("Can be sent",self.window[self.nextseqnum:self.base + self.window_size])
+            print("Not usable yet",self.window[self.base + self.window_size:])
+        except:
+            return
