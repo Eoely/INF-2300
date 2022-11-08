@@ -13,13 +13,13 @@ class TransportLayer:
     def __init__(self):
         self.timer = None
         self.timeout = 0.4  # Seconds
-        self.base = 1
-        self.nextseqnum = 1
-        self.expectedseqnum = 1
+        self.base = 0
+        self.nextseqnum = 0
+        self.expectedseqnum = 0
+        self.last_ack = 0
         self.ack_data = b''
         self.window_size = 4 #N
-        self.window = ["filler"] #Window array to contain packets
-        self.last_ack = 0
+        self.window = list() #Window array to contain packets. Tracks all packets, use indexes to find window
 
     def with_logger(self, logger):
         self.logger = logger
@@ -39,7 +39,7 @@ class TransportLayer:
             self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
             self.network_layer.send(packet)
 
-            if self.base == self.nextseqnum:
+            if self.base == self.nextseqnum:#TODO: not needed to work, but makes sense??
                 self.reset_timer(self.packet_timeout)
 
         self.nextseqnum += 1
