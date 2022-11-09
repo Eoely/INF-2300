@@ -14,8 +14,6 @@ class ApplicationLayer:
 
     def send_next_packet(self):
         if not self.payload:
-            # print("This is where it stops")
-            # quit()    
             return
 
         next_bytes = self.payload.get_chunk()

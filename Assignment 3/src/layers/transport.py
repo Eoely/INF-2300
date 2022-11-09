@@ -36,7 +36,7 @@ class TransportLayer:
         packet = Packet(binary_data, False, self.nextseqnum)
         self.window.append(packet)
         if self.nextseqnum < self.base + self.window_size:
-            self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
+            # self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
             self.network_layer.send(packet)
 
             if self.base == self.nextseqnum:#TODO: not needed to work, but makes sense??
@@ -50,8 +50,14 @@ class TransportLayer:
         #ALICE receives ACK
         #Shift base of window to packet after last acknowledged packet
         if packet.is_ack:
-            self.logger.info(f"Alice recieving ACK {packet.seqn}")
+            # self.logger.info(f"Alice recieving ACK {packet.seqn}")
             self.base = packet.seqn + 1
+            if self.base == self.nextseqnum:
+                # print("cancel timer -- receiving ACK")
+                self.timer.cancel()
+            else:
+                # print("reset timer -- recieving ACK")
+                self.reset_timer(self.packet_timeout)
             return
 
         #BOB recieve packet
@@ -59,13 +65,13 @@ class TransportLayer:
         if self.is_corrupted(packet):
             return
         
-        self.logger.info(f"Bob recieving {packet.data}{packet.seqn}"),
+        # self.logger.info(f"Bob recieving {packet.data}{packet.seqn}"),
         #Acknowledge recieved pack
         #If new packet, update values and send ack
         if packet.seqn == self.expectedseqnum:
             self.application_layer.receive_from_transport(packet.data)
             ack_packet = Packet(self.ack_data, True, self.expectedseqnum)
-            self.logger.info(f"Bob sending ACK {ack_packet.seqn}")
+            # self.logger.info(f"Bob sending ACK {ack_packet.seqn}")
             self.last_ack = ack_packet.seqn
             self.network_layer.send(ack_packet)
             self.expectedseqnum += 1
@@ -100,6 +106,8 @@ class TransportLayer:
         '''Callback function for timer, send all packets in window: [base : nextseqnum - 1]'''
         self.reset_timer(self.packet_timeout)
         for i in range(self.base,self.nextseqnum):
-            packet = self.window[i]
-            self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
+            # self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
             self.network_layer.send(self.window[i])
+        
+            
+
