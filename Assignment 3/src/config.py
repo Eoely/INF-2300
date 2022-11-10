@@ -8,7 +8,7 @@
 # Keep the number of packets low in the beginning
 
 # Number of packets per simulation
-PACKET_NUM = 10
+PACKET_NUM = 25
 
 # The size of each packet in bytes.
 # The data in each packetp will be uppercase ASCII letters only!

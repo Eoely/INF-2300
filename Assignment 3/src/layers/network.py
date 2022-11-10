@@ -30,7 +30,7 @@ class NetworkLayer:
         # Should we CORRUPT this packet?
         if should(CORRUPT_CHANCE):
             self.logger.warning(f"Corrupting {packet}")
-            packet.data = token_bytes(len(packet.data))
+            packet.data = token_bytes(len(packet.data)) 
 
         # Should we DELAY this packet?
         if should(DELAY_CHANCE):

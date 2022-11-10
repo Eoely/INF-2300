@@ -1,8 +1,5 @@
-from copy import copy
 import re
 from threading import Timer
-import time
-
 from packet import Packet
 
 class TransportLayer:
@@ -16,7 +13,6 @@ class TransportLayer:
         self.base = 0
         self.nextseqnum = 0
         self.expectedseqnum = 0
-        self.last_ack = 0
         self.ack_data = b''
         self.window_size = 4 #N
         self.window = list() #Window array to contain packets. Tracks all packets, use indexes to find window
@@ -32,14 +28,15 @@ class TransportLayer:
         self.network_layer = layer
 
     def from_app(self, binary_data):
-        # Alice sends data packets
+        #Alice sends data packets
+        #Append all incoming data to array
         packet = Packet(binary_data, False, self.nextseqnum)
         self.window.append(packet)
+        #If the window is not full, send packet
         if self.nextseqnum < self.base + self.window_size:
-            # self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
             self.network_layer.send(packet)
-
-            if self.base == self.nextseqnum:#TODO: not needed to work, but makes sense??
+            #If there is no outstanding packets, start timer.
+            if self.base == self.nextseqnum:
                 self.reset_timer(self.packet_timeout)
 
         self.nextseqnum += 1
@@ -50,37 +47,25 @@ class TransportLayer:
         #ALICE receives ACK
         #Shift base of window to packet after last acknowledged packet
         if packet.is_ack:
-            # self.logger.info(f"Alice recieving ACK {packet.seqn}")
             self.base = packet.seqn + 1
+            #If there are no packets being sent, stop timer.
             if self.base == self.nextseqnum:
-                # print("cancel timer -- receiving ACK")
                 self.timer.cancel()
-            else:
-                # print("reset timer -- recieving ACK")
+            else:#Outstanding packets, reset timer for timeout if lost/corrupted/delayed
                 self.reset_timer(self.packet_timeout)
             return
 
         #BOB recieve packet
-        #Packet is corrupted => Return out, same as packet got dropped
-        if self.is_corrupted(packet):
+        #Packet is corrupted or out of order => Return out, same as packet got dropped
+        if self.is_corrupted(packet) or packet.seqn != self.expectedseqnum:
             return
         
-        # self.logger.info(f"Bob recieving {packet.data}{packet.seqn}"),
         #Acknowledge recieved pack
         #If new packet, update values and send ack
-        if packet.seqn == self.expectedseqnum:
-            self.application_layer.receive_from_transport(packet.data)
-            ack_packet = Packet(self.ack_data, True, self.expectedseqnum)
-            # self.logger.info(f"Bob sending ACK {ack_packet.seqn}")
-            self.last_ack = ack_packet.seqn
-            self.network_layer.send(ack_packet)
-            self.expectedseqnum += 1
-        
-        # else: #If out of order send ack of last good packet TODO: NOT NEEDED???
-        #     ack_packet = Packet(self.ack_data, True, self.last_ack)
-        #     self.logger.info(f"Bob sending prev ACK {ack_packet.seqn}")
-        #     self.network_layer.send(ack_packet)
-        #     quit()
+        self.application_layer.receive_from_transport(packet.data)
+        ack_packet = Packet(self.ack_data, True, self.expectedseqnum)
+        self.network_layer.send(ack_packet)
+        self.expectedseqnum += 1
 
     
 
@@ -88,7 +73,7 @@ class TransportLayer:
         # This is a safety-wrapper around the Timer-objects, which are
         # separate threads. If we have a timer-object already,
         # stop it before making a new one so we don't flood
-        # the system with threads!
+        # the system with threads!  
         if self.timer:
             if self.timer.is_alive():
                 self.timer.cancel()
@@ -105,9 +90,10 @@ class TransportLayer:
     def packet_timeout(self):
         '''Callback function for timer, send all packets in window: [base : nextseqnum - 1]'''
         self.reset_timer(self.packet_timeout)
-        for i in range(self.base,self.nextseqnum):
-            # self.logger.info(f"Alice sending {packet.data}{packet.seqn}")
-            self.network_layer.send(self.window[i])
+        for i in range(self.base, self.base + self.window_size + 1):
+            try:
+                self.network_layer.send(self.window[i])
+            except IndexError:
+                return
         
             
-
