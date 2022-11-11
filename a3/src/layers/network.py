@@ -30,7 +30,7 @@ class NetworkLayer:
         # Should we CORRUPT this packet?
         if should(CORRUPT_CHANCE):
             self.logger.warning(f"Corrupting {packet}")
-            packet.data = token_bytes(len(packet.data))
+            packet.data = token_bytes(len(packet.data)) 
 
         # Should we DELAY this packet?
         if should(DELAY_CHANCE):
@@ -41,7 +41,7 @@ class NetworkLayer:
             # seconds have passed, from a separate thread. So other packets
             # will arrive in the meantime.
             timer_object = Timer(
-                DELAY_AMOUNT, self.transport_layer.from_network, (packet,)
+                DELAY_AMOUNT, self.recipient.receive, (packet,)
             )
             timer_object.start()
             return

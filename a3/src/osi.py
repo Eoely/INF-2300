@@ -32,7 +32,7 @@ class OSIStack:
     def connect(self, other_stack):
         # The network layer of one stack will be connected
         # to the network layer of the other_stack.
-        # See: 'network.py' for more details.
+        # See: 'network.py' for mor details.
         self.network_layer.recipient = other_stack.network_layer
 
     def tick(self):
